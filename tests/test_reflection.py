@@ -45,7 +45,7 @@ class TestReflectionEndpoints:
         r = warehouse.get("/api/reflect")
         assert r.status_code == 200
         data = r.json()
-        assert data["ir_version"] == "0.3.0"
+        assert data["ir_version"] == "0.4.0"
         assert data["name"] == "Warehouse Inventory Manager"
 
     def test_reflect_content(self, warehouse):

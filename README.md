@@ -83,7 +83,7 @@ The suite deploys 6 test apps once per session and runs all tests via HTTP.
 | `test_state_machines.py` | 19 | Initial state, valid transitions, scope-gated transitions, multi-word states, persistence |
 | `test_field_validation.py` | 16 | Required fields, unique constraints, enum validation, min/max, type roundtrip |
 | `test_crud.py` | 15 | List, create, get-one, update, delete, multiple records |
-| `test_defaults.py` | 3 | `defaults to [User.Name]`, `defaults to [now]` |
+| `test_defaults.py` | 3 | `` defaults to `User.Name` ``, `` defaults to `now` `` |
 | `test_data_isolation.py` | 5 | Cross-content safety, cross-app separation, mass assignment protection |
 | `test_reflection.py` | 8 | Metadata endpoints, bootstrap, client runtime |
 | `test_errors.py` | 4 | Error responses, edge cases |
@@ -105,15 +105,26 @@ The suite deploys 6 test apps once per session and runs all tests via HTTP.
 
 ## Specifications
 
-- **[IR JSON Schema](specs/termin-ir-schema.json)** — Machine-readable contract defining the structure of compiled Termin applications (IR version 0.3.0)
+- **[IR JSON Schema](specs/termin-ir-schema.json)** — Machine-readable contract defining the structure of compiled Termin applications (IR version 0.4.0)
 - **[Runtime Implementer's Guide](specs/termin-runtime-implementers-guide.md)** — How to build a conforming runtime: storage, access control, state machines, events, presentation, CEL expressions, WebSocket protocol
 - **[Package Format](specs/termin-package-format.md)** — `.termin.pkg` ZIP structure, manifest versioning, checksums, revision tracking
 
 ## IR Version
 
-Current: **0.3.0**
+Current: **0.4.0**
 
-This suite validates runtimes implementing IR version 0.3.0. Key features:
+### 0.4.0 (April 2026)
+
+- **Expression delimiter: `[bracket]` → `` `backtick` ``** — Breaking change. Backticks are unambiguous with array indices (`items[0]`), familiar from markdown, and support both inline (`` `expr` ``) and triple-backtick (` ``` `) multi-line forms for embedded sub-languages (CEL, LLM prompts, provider-specific DSLs).
+- **Confidentiality system** — `confidentiality_scopes` on FieldSpec and ContentSchema (AND semantics). `identity_mode`, `required_confidentiality_scopes`, `output_confidentiality_scope`, `field_dependencies` on ComputeSpec. `reclassification_points` on AppSpec.
+- **Server-side Compute endpoint** — `POST /api/v1/compute/{name}` with 4 defense-in-depth checks (identity gate, taint integrity, CEL redaction guard, output taint enforcement).
+- **Field redaction** — `{"__redacted": true, "scope": "..."}` markers in API responses for unauthorized fields. Presentation renders `[REDACTED]`.
+- **`FieldDependency`** and **`ReclassificationPoint`** IR types for confidentiality audit trail.
+- **Renamed PEG rule**: `jexl_expr` → `expr`, all `jexl` capture names → `cel`.
+- **User identity standardized**: `User.Name`, `User.FirstName`, `User.Role`, `User.Scopes`, `User.Authenticated`. Deprecates `CurrentUser`, `LoggedInUser`, `UserProfile`.
+
+### 0.3.0 (April 2026)
+
 - `app_id` — compiler-managed UUID for deployment identity
 - `default_expr` — CEL expressions for field defaults (`User.Name`, `now`)
 - `condition_expr` — renamed from `jexl_condition` (CEL migration)
