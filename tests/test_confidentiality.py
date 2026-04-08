@@ -352,11 +352,11 @@ class TestSalaryReviewStateMachine:
 class TestConfidentialityIR:
     """Verify the IR contains confidentiality metadata."""
 
-    def test_field_confidentiality_scope_in_ir(self, hrportal_ir):
-        """Fields with confidentiality should have confidentiality_scope in IR."""
+    def test_field_confidentiality_scopes_in_ir(self, hrportal_ir):
+        """Fields with confidentiality should have confidentiality_scopes list in IR."""
         employees = [c for c in hrportal_ir["content"] if c["name"]["snake"] == "employees"][0]
         salary = [f for f in employees["fields"] if f["name"] == "salary"][0]
-        assert salary["confidentiality_scope"] == "access_salary"
+        assert "access_salary" in salary["confidentiality_scopes"]
 
     def test_pii_scope_in_ir(self, hrportal_ir):
         ssn = None
@@ -365,12 +365,12 @@ class TestConfidentialityIR:
                 if f["name"] == "ssn":
                     ssn = f
         assert ssn is not None
-        assert ssn["confidentiality_scope"] == "access_pii"
+        assert "access_pii" in ssn["confidentiality_scopes"]
 
-    def test_content_level_scope_in_ir(self, hrportal_ir):
-        """salary_reviews should have content-level confidentiality_scope."""
+    def test_content_level_scopes_in_ir(self, hrportal_ir):
+        """salary_reviews should have content-level confidentiality_scopes."""
         sr = [c for c in hrportal_ir["content"] if c["name"]["snake"] == "salary_reviews"][0]
-        assert sr["confidentiality_scope"] == "access_salary"
+        assert "access_salary" in sr["confidentiality_scopes"]
 
     def test_compute_identity_mode_in_ir(self, hrportal_ir):
         """Calculate Team Bonus Pool should have identity_mode: service."""
