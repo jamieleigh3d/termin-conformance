@@ -73,21 +73,35 @@ class MyAdapter(RuntimeAdapter):
 
 The suite deploys 6 test apps once per session and runs all tests via HTTP.
 
-## Test Categories
+## Test Categories (201 tests)
 
-| Category | Tests | What it validates |
-|----------|-------|-------------------|
-| Identity & Access Control | 40+ | Role resolution, scope checking, deny-by-default, per-content grants |
-| State Machine Enforcement | 30+ | Initial state, valid transitions, scope-gated transitions, multi-word states |
-| Field Validation | 30+ | Required fields, unique constraints, enum validation, type roundtrip |
-| CRUD Operations | 25+ | List, create, get-one, update, delete, error responses |
-| Presentation | 25+ | Page rendering, data tables, forms, action buttons, filters, nav |
-| Default Expressions | 20+ | `defaults to [User.Name]`, `defaults to [now]`, CEL evaluation |
-| Data Isolation | 10+ | Cross-content safety, cross-app separation, mass assignment protection |
-| Events & WebSocket | 10+ | EventBus, channel filtering, WebSocket protocol |
-| Navigation | 10+ | Role-based visibility, nav items |
-| Reflection & Bootstrap | 10+ | Metadata endpoints, client initialization |
-| IR Schema Validation | 6 | All fixtures validate against JSON Schema |
+### Tier 1: API Contract (131 tests)
+
+| File | Tests | What it validates |
+|------|-------|-------------------|
+| `test_access_control.py` | 17 | Role resolution, scope checking, deny-by-default, role × verb × content matrices |
+| `test_state_machines.py` | 19 | Initial state, valid transitions, scope-gated transitions, multi-word states, persistence |
+| `test_field_validation.py` | 16 | Required fields, unique constraints, enum validation, min/max, type roundtrip |
+| `test_crud.py` | 15 | List, create, get-one, update, delete, multiple records |
+| `test_defaults.py` | 3 | `defaults to [User.Name]`, `defaults to [now]` |
+| `test_data_isolation.py` | 5 | Cross-content safety, cross-app separation, mass assignment protection |
+| `test_reflection.py` | 8 | Metadata endpoints, bootstrap, client runtime |
+| `test_errors.py` | 4 | Error responses, edge cases |
+| `test_websocket.py` | 3 | WebSocket connect, subscribe, unsubscribe |
+
+### Tier 2: Presentation Contract (44 tests)
+
+| File | Tests | What it validates |
+|------|-------|-------------------|
+| `test_presentation.py` | 21 | Page rendering, data tables, forms, buttons, filters, search |
+| `test_presentation_contract.py` | 23 | IR-driven: every component, column, field, filter annotated with `data-termin-*` |
+
+### Tier 3: Behavioral Round-Trip (16 tests)
+
+| File | Tests | What it validates |
+|------|-------|-------------------|
+| `test_navigation.py` | 6 | Role-based nav visibility, role picker |
+| `test_roundtrip.py` | 10 | Form submit → API verify, transition → API verify, data visibility |
 
 ## Specifications
 
