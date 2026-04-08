@@ -102,6 +102,13 @@ def compute_demo():
     if app_info.cleanup:
         app_info.cleanup()
 
+@pytest.fixture(scope="session")
+def hrportal():
+    app_info, session = _get_app_session("hrportal")
+    yield session
+    if app_info.cleanup:
+        app_info.cleanup()
+
 
 # ── IR fixtures for introspection ──
 
@@ -118,4 +125,9 @@ def helpdesk_ir():
 @pytest.fixture(scope="session")
 def projectboard_ir():
     app_info, _ = _get_app_session("projectboard")
+    return app_info.ir
+
+@pytest.fixture(scope="session")
+def hrportal_ir():
+    app_info, _ = _get_app_session("hrportal")
     return app_info.ir
