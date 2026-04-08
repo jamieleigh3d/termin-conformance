@@ -44,6 +44,9 @@ class _TestClientSession(TerminSession):
 class ReferenceAdapter(RuntimeAdapter):
     """In-process adapter for the Termin reference runtime."""
 
+    def __init__(self):
+        self._sessions = {}
+
     def deploy(self, fixture_path: Path, app_name: str) -> AppInfo:
         from termin_runtime import create_termin_app
         from fastapi.testclient import TestClient
@@ -66,14 +69,15 @@ class ReferenceAdapter(RuntimeAdapter):
         client = TestClient(app)
         client.__enter__()
 
-        return AppInfo(
+        # Store the session wrapper on the AppInfo for reuse
+        session = _TestClientSession(client)
+        info = AppInfo(
             base_url="http://testserver",
             ir=ir,
             cleanup=lambda: client.__exit__(None, None, None),
         )
+        self._sessions[id(info)] = session
+        return info
 
     def create_session(self, app_info: AppInfo) -> TerminSession:
-        # For the reference runtime, the TestClient is reused across
-        # all tests for the same app (session-scoped fixture)
-        # We return a new session wrapper but it shares the same client
-        return app_info._session
+        return self._sessions[id(app_info)]
