@@ -1,0 +1,110 @@
+{
+  "ir_version": "0.3.0",
+  "reflection_enabled": true,
+  "app_id": "cb4aef7b-1f54-41a2-8999-55d9367a9304",
+  "name": "Hello User",
+  "description": "A slightly personalized Hello World.",
+  "auth": {
+    "provider": "stub",
+    "scopes": [
+      "view app"
+    ],
+    "roles": [
+      {
+        "name": "Anonymous",
+        "scopes": [
+          "view app"
+        ]
+      },
+      {
+        "name": "LoggedInUser",
+        "scopes": [
+          "view app"
+        ]
+      }
+    ]
+  },
+  "content": [],
+  "access_grants": [],
+  "state_machines": [],
+  "events": [],
+  "routes": [],
+  "pages": [
+    {
+      "name": "Hello",
+      "slug": "hello",
+      "role": "Anonymous",
+      "required_scope": null,
+      "children": [
+        {
+          "type": "text",
+          "props": {
+            "content": "Anon, Hello!"
+          },
+          "style": {},
+          "layout": {},
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "Hello",
+      "slug": "hello",
+      "role": "LoggedInUser",
+      "required_scope": null,
+      "children": [
+        {
+          "type": "text",
+          "props": {
+            "content": {
+              "value": "SayHelloTo(LoggedInUser.CurrentUser)",
+              "is_expr": true
+            }
+          },
+          "style": {},
+          "layout": {},
+          "children": []
+        }
+      ]
+    }
+  ],
+  "nav_items": [],
+  "streams": [],
+  "computes": [
+    {
+      "name": {
+        "display": "SayHelloTo",
+        "snake": "sayhelloto",
+        "pascal": "Sayhelloto"
+      },
+      "shape": "TRANSFORM",
+      "input_content": [
+        "userprofile"
+      ],
+      "output_content": [
+        "text"
+      ],
+      "body_lines": [
+        "greeting = \"Hello, \" + u.FirstName + \"!\""
+      ],
+      "required_scope": null,
+      "required_role": "LoggedInUser",
+      "input_params": [
+        {
+          "name": "u",
+          "type_name": "UserProfile"
+        }
+      ],
+      "output_params": [
+        {
+          "name": "greeting",
+          "type_name": "Text"
+        }
+      ],
+      "client_safe": true
+    }
+  ],
+  "channels": [],
+  "boundaries": [],
+  "error_handlers": []
+}
