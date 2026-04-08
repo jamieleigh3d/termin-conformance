@@ -115,7 +115,6 @@ class TestEnumConstraints:
 class TestNumericConstraints:
     """Minimum/maximum constraints on numeric fields."""
 
-    @pytest.mark.xfail(reason="Minimum constraint not yet enforced on API creates -- runtime gap")
     def test_minimum_constraint_respected(self, projectboard):
         """Capacity with minimum 0 should reject negative values."""
         projectboard.set_role("project manager")
@@ -128,6 +127,19 @@ class TestNumericConstraints:
             "capacity": -5,  # below minimum of 0
         })
         assert r.status_code in (400, 422)
+
+    def test_minimum_valid_value_accepted(self, projectboard):
+        """A value at the minimum boundary should be accepted."""
+        projectboard.set_role("project manager")
+        pr = projectboard.post("/api/v1/projects", json={
+            "name": f"Proj {_uid()}", "description": "test",
+        })
+        pid = pr.json()["id"]
+        r = projectboard.post("/api/v1/sprints", json={
+            "project": pid, "name": f"Sprint {_uid()}",
+            "capacity": 0,  # exactly at minimum
+        })
+        assert r.status_code == 201
 
 
 class TestAutoFields:
