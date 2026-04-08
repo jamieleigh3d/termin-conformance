@@ -4,8 +4,7 @@ This adapter starts the reference Termin runtime (Python, FastAPI, SQLite)
 in-process using Starlette's TestClient. No network, no deployment, instant.
 
 Usage:
-    pytest tests/ --adapter=reference
-    # or set in conftest.py: ADAPTER = ReferenceAdapter()
+    TERMIN_ADAPTER=reference pytest tests/ -v
 
 Requires: pip install termin-compiler (which includes termin_runtime)
 """
@@ -18,27 +17,49 @@ from adapter import RuntimeAdapter, AppInfo, TerminSession
 
 
 class _TestClientSession(TerminSession):
-    """Wraps FastAPI TestClient as a TerminSession."""
+    """Wraps FastAPI TestClient as a TerminSession.
+
+    Manages identity cookies explicitly per-request to avoid session
+    state bleeding between tests when the fixture is session-scoped.
+    """
 
     def __init__(self, test_client):
         self._client = test_client
         self.base_url = "http://testserver"
+        self._role = None
+        self._user_name = "User"
+
+    def _cookies(self):
+        """Build cookie dict for the current identity."""
+        cookies = {}
+        if self._role:
+            cookies["termin_role"] = self._role
+        cookies["termin_user_name"] = self._user_name
+        return cookies
 
     def get(self, path, **kwargs):
+        kwargs.setdefault("cookies", self._cookies())
         return self._client.get(path, **kwargs)
 
     def post(self, path, **kwargs):
+        kwargs.setdefault("cookies", self._cookies())
         return self._client.post(path, **kwargs)
 
     def put(self, path, **kwargs):
+        kwargs.setdefault("cookies", self._cookies())
         return self._client.put(path, **kwargs)
 
     def delete(self, path, **kwargs):
+        kwargs.setdefault("cookies", self._cookies())
         return self._client.delete(path, **kwargs)
 
     def set_role(self, role, user_name="User"):
-        self._client.cookies.set("termin_role", role)
-        self._client.cookies.set("termin_user_name", user_name)
+        self._role = role
+        self._user_name = user_name
+
+    def websocket_connect(self, path):
+        """Delegate to TestClient's websocket_connect."""
+        return self._client.websocket_connect(path)
 
 
 class ReferenceAdapter(RuntimeAdapter):
@@ -69,7 +90,6 @@ class ReferenceAdapter(RuntimeAdapter):
         client = TestClient(app)
         client.__enter__()
 
-        # Store the session wrapper on the AppInfo for reuse
         session = _TestClientSession(client)
         info = AppInfo(
             base_url="http://testserver",
