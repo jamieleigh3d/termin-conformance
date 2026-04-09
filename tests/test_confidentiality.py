@@ -380,7 +380,6 @@ class TestConfidentialityIR:
         assert "access_salary" in comp["required_confidentiality_scopes"]
         assert comp["output_confidentiality_scope"] == "view_team_metrics"
 
-    @pytest.mark.xfail(reason="Compiler CEL body analysis not yet implemented — reclassification points deferred")
     def test_reclassification_points_in_ir(self, hrportal_ir):
         """IR should contain reclassification points for audit."""
         rps = hrportal_ir.get("reclassification_points", [])
@@ -390,7 +389,6 @@ class TestConfidentialityIR:
         assert "access_salary" in rp["input_scopes"]
         assert rp["output_scope"] == "view_team_metrics"
 
-    @pytest.mark.xfail(reason="Compiler CEL body analysis not yet implemented — field dependencies deferred")
     def test_field_dependencies_in_ir(self, hrportal_ir):
         """Compute should have resolved field dependencies."""
         comp = hrportal_ir["computes"][0]
