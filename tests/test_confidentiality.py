@@ -114,7 +114,7 @@ class TestFieldRedaction:
         # Salary should be redacted
         assert isinstance(emp["salary"], dict)
         assert emp["salary"]["__redacted"] is True
-        assert emp["salary"]["scope"] == "access_salary"
+        assert emp["salary"]["scope"] == "salary.access"
 
     def test_employee_sees_no_pii(self, hrportal):
         """Employee role lacks access_pii — SSN and phone should be redacted."""
@@ -282,13 +282,13 @@ class TestRoleFieldVisibilityMatrix:
 
     @pytest.mark.parametrize("role,field,expected_scope", [
         # These fields should be redacted (requires confidentiality enforcement)
-        ("employee", "salary", "access_salary"),
-        ("employee", "bonus_rate", "access_salary"),
-        ("employee", "ssn", "access_pii"),
-        ("employee", "phone", "access_pii"),
-        ("manager", "salary", "access_salary"),
-        ("manager", "ssn", "access_pii"),
-        ("executive", "salary", "access_salary"),
+        ("employee", "salary", "salary.access"),
+        ("employee", "bonus_rate", "salary.access"),
+        ("employee", "ssn", "pii.access"),
+        ("employee", "phone", "pii.access"),
+        ("manager", "salary", "salary.access"),
+        ("manager", "ssn", "pii.access"),
+        ("executive", "salary", "salary.access"),
     ])
     def test_field_redacted(self, hrportal, role, field, expected_scope):
         """Fields that should be redacted for a given role."""
@@ -357,7 +357,7 @@ class TestConfidentialityIR:
         """Fields with confidentiality should have confidentiality_scopes list in IR."""
         employees = [c for c in hrportal_ir["content"] if c["name"]["snake"] == "employees"][0]
         salary = [f for f in employees["fields"] if f["name"] == "salary"][0]
-        assert "access_salary" in salary["confidentiality_scopes"]
+        assert "salary.access" in salary["confidentiality_scopes"]
 
     def test_pii_scope_in_ir(self, hrportal_ir):
         ssn = None
@@ -366,19 +366,19 @@ class TestConfidentialityIR:
                 if f["name"] == "ssn":
                     ssn = f
         assert ssn is not None
-        assert "access_pii" in ssn["confidentiality_scopes"]
+        assert "pii.access" in ssn["confidentiality_scopes"]
 
     def test_content_level_scopes_in_ir(self, hrportal_ir):
         """salary_reviews should have content-level confidentiality_scopes."""
         sr = [c for c in hrportal_ir["content"] if c["name"]["snake"] == "salary_reviews"][0]
-        assert "access_salary" in sr["confidentiality_scopes"]
+        assert "salary.access" in sr["confidentiality_scopes"]
 
     def test_compute_identity_mode_in_ir(self, hrportal_ir):
         """Calculate Team Bonus Pool should have identity_mode: service."""
         comp = hrportal_ir["computes"][0]
         assert comp["identity_mode"] == "service"
-        assert "access_salary" in comp["required_confidentiality_scopes"]
-        assert comp["output_confidentiality_scope"] == "view_team_metrics"
+        assert "salary.access" in comp["required_confidentiality_scopes"]
+        assert comp["output_confidentiality_scope"] == "team_metrics.view"
 
     def test_reclassification_points_in_ir(self, hrportal_ir):
         """IR should contain reclassification points for audit."""
@@ -386,8 +386,8 @@ class TestConfidentialityIR:
         assert len(rps) >= 1
         rp = rps[0]
         assert rp["compute_name"] == "Calculate Team Bonus Pool"
-        assert "access_salary" in rp["input_scopes"]
-        assert rp["output_scope"] == "view_team_metrics"
+        assert "salary.access" in rp["input_scopes"]
+        assert rp["output_scope"] == "team_metrics.view"
 
     def test_field_dependencies_in_ir(self, hrportal_ir):
         """Compute should have resolved field dependencies."""

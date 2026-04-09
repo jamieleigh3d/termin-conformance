@@ -7,30 +7,30 @@
   "auth": {
     "provider": "stub",
     "scopes": [
-      "read inventory",
-      "write inventory",
-      "admin inventory"
+      "inventory.read",
+      "inventory.write",
+      "inventory.admin"
     ],
     "roles": [
       {
         "name": "warehouse clerk",
         "scopes": [
-          "read inventory",
-          "write inventory"
+          "inventory.read",
+          "inventory.write"
         ]
       },
       {
         "name": "warehouse manager",
         "scopes": [
-          "read inventory",
-          "write inventory",
-          "admin inventory"
+          "inventory.read",
+          "inventory.write",
+          "inventory.admin"
         ]
       },
       {
         "name": "executive",
         "scopes": [
-          "read inventory"
+          "inventory.read"
         ]
       }
     ]
@@ -307,14 +307,14 @@
   "access_grants": [
     {
       "content": "products",
-      "scope": "read inventory",
+      "scope": "inventory.read",
       "verbs": [
         "VIEW"
       ]
     },
     {
       "content": "products",
-      "scope": "write inventory",
+      "scope": "inventory.write",
       "verbs": [
         "CREATE",
         "UPDATE"
@@ -322,21 +322,21 @@
     },
     {
       "content": "products",
-      "scope": "admin inventory",
+      "scope": "inventory.admin",
       "verbs": [
         "DELETE"
       ]
     },
     {
       "content": "stock_levels",
-      "scope": "read inventory",
+      "scope": "inventory.read",
       "verbs": [
         "VIEW"
       ]
     },
     {
       "content": "stock_levels",
-      "scope": "write inventory",
+      "scope": "inventory.write",
       "verbs": [
         "CREATE",
         "UPDATE"
@@ -344,21 +344,21 @@
     },
     {
       "content": "reorder_alerts",
-      "scope": "read inventory",
+      "scope": "inventory.read",
       "verbs": [
         "VIEW"
       ]
     },
     {
       "content": "reorder_alerts",
-      "scope": "write inventory",
+      "scope": "inventory.write",
       "verbs": [
         "CREATE"
       ]
     },
     {
       "content": "reorder_alerts",
-      "scope": "admin inventory",
+      "scope": "inventory.admin",
       "verbs": [
         "UPDATE"
       ]
@@ -378,17 +378,17 @@
         {
           "from_state": "draft",
           "to_state": "active",
-          "required_scope": "write inventory"
+          "required_scope": "inventory.write"
         },
         {
           "from_state": "active",
           "to_state": "discontinued",
-          "required_scope": "admin inventory"
+          "required_scope": "inventory.admin"
         },
         {
           "from_state": "discontinued",
           "to_state": "active",
-          "required_scope": "admin inventory"
+          "required_scope": "inventory.admin"
         }
       ],
       "primitive_type": "content"
@@ -430,7 +430,7 @@
       "path": "/api/v1/products",
       "kind": "LIST",
       "content_ref": "products",
-      "required_scope": "read inventory",
+      "required_scope": "inventory.read",
       "lookup_column": "id",
       "target_state": null
     },
@@ -439,7 +439,7 @@
       "path": "/api/v1/products",
       "kind": "CREATE",
       "content_ref": "products",
-      "required_scope": "write inventory",
+      "required_scope": "inventory.write",
       "lookup_column": "id",
       "target_state": null
     },
@@ -448,7 +448,7 @@
       "path": "/api/v1/products/{sku}",
       "kind": "GET_ONE",
       "content_ref": "products",
-      "required_scope": "read inventory",
+      "required_scope": "inventory.read",
       "lookup_column": "sku",
       "target_state": null
     },
@@ -457,7 +457,7 @@
       "path": "/api/v1/products/{sku}",
       "kind": "UPDATE",
       "content_ref": "products",
-      "required_scope": "write inventory",
+      "required_scope": "inventory.write",
       "lookup_column": "sku",
       "target_state": null
     },
@@ -466,7 +466,7 @@
       "path": "/api/v1/products/{sku}",
       "kind": "DELETE",
       "content_ref": "products",
-      "required_scope": "admin inventory",
+      "required_scope": "inventory.admin",
       "lookup_column": "sku",
       "target_state": null
     },
@@ -493,7 +493,7 @@
       "path": "/api/v1/stock-levels",
       "kind": "LIST",
       "content_ref": "stock_levels",
-      "required_scope": "read inventory",
+      "required_scope": "inventory.read",
       "lookup_column": "id",
       "target_state": null
     },
@@ -502,7 +502,7 @@
       "path": "/api/v1/stock-levels",
       "kind": "CREATE",
       "content_ref": "stock_levels",
-      "required_scope": "write inventory",
+      "required_scope": "inventory.write",
       "lookup_column": "id",
       "target_state": null
     },
@@ -511,7 +511,7 @@
       "path": "/api/v1/stock-levels/{id}",
       "kind": "UPDATE",
       "content_ref": "stock_levels",
-      "required_scope": "write inventory",
+      "required_scope": "inventory.write",
       "lookup_column": "id",
       "target_state": null
     },
@@ -520,7 +520,7 @@
       "path": "/api/v1/alerts",
       "kind": "LIST",
       "content_ref": "reorder_alerts",
-      "required_scope": "read inventory",
+      "required_scope": "inventory.read",
       "lookup_column": "id",
       "target_state": null
     },
@@ -529,7 +529,7 @@
       "path": "/api/v1/alerts/{id}/acknowledge",
       "kind": "LIST",
       "content_ref": "reorder_alerts",
-      "required_scope": "read inventory",
+      "required_scope": "inventory.read",
       "lookup_column": "id",
       "target_state": null
     }
@@ -681,14 +681,14 @@
       "name": "Receive Stock",
       "slug": "receive_stock",
       "role": "warehouse clerk",
-      "required_scope": "write inventory",
+      "required_scope": "inventory.write",
       "children": [
         {
           "type": "form",
           "props": {
             "target": "stock_levels",
             "after_save": "return to the Inventory Dashboard",
-            "submit_scope": "write inventory"
+            "submit_scope": "inventory.write"
           },
           "style": {},
           "layout": {},
@@ -811,7 +811,7 @@
       "name": "Add Product",
       "slug": "add_product",
       "role": "warehouse manager",
-      "required_scope": "write inventory",
+      "required_scope": "inventory.write",
       "children": [
         {
           "type": "form",
@@ -819,7 +819,7 @@
             "target": "products",
             "create_as": "draft",
             "after_save": "offer to set initial stock levels per warehouse",
-            "submit_scope": "write inventory"
+            "submit_scope": "inventory.write"
           },
           "style": {},
           "layout": {},
