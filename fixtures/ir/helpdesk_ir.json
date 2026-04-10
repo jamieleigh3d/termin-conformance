@@ -259,12 +259,16 @@
     {
       "content": "tickets",
       "scope": "tickets.view",
-      "verbs": []
+      "verbs": [
+        "VIEW"
+      ]
     },
     {
       "content": "tickets",
       "scope": "tickets.create",
-      "verbs": []
+      "verbs": [
+        "CREATE"
+      ]
     },
     {
       "content": "tickets",
