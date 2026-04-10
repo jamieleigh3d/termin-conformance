@@ -1,0 +1,43 @@
+{
+  "version": "0.1.0",
+  "channels": {
+    "order webhook": {
+      "url": "https://TODO-configure-order_webhook.example.com/api",
+      "protocol": "http",
+      "auth": {
+        "type": "bearer",
+        "token": "${ORDER_WEBHOOK_TOKEN}"
+      },
+      "timeout_ms": 30000,
+      "retry": {
+        "max_attempts": 3,
+        "backoff_ms": 1000
+      }
+    },
+    "order updates stream": {
+      "url": "https://TODO-configure-order_updates_stream.example.com/api",
+      "protocol": "websocket",
+      "auth": {
+        "type": "bearer",
+        "token": "${ORDER_UPDATES_STREAM_TOKEN}"
+      },
+      "reconnect": true,
+      "heartbeat_ms": 30000
+    },
+    "order notifications": {
+      "url": "https://TODO-configure-order_notifications.example.com/api",
+      "protocol": "websocket",
+      "auth": {
+        "type": "bearer",
+        "token": "${ORDER_NOTIFICATIONS_TOKEN}"
+      },
+      "reconnect": true,
+      "heartbeat_ms": 30000
+    }
+  },
+  "identity": {
+    "provider": "stub",
+    "config": {}
+  },
+  "runtime": {}
+}

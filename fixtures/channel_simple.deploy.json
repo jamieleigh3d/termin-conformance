@@ -1,0 +1,29 @@
+{
+  "version": "0.1.0",
+  "channels": {
+    "note-sync": {
+      "url": "http://localhost:8000/webhooks/echo_receiver",
+      "protocol": "http",
+      "auth": {
+        "type": "none"
+      },
+      "timeout_ms": 5000,
+      "retry": {
+        "max_attempts": 1,
+        "backoff_ms": 500
+      }
+    },
+    "echo-receiver": {
+      "url": "http://localhost:8000/webhooks/echo_receiver",
+      "protocol": "http",
+      "auth": {
+        "type": "none"
+      }
+    }
+  },
+  "identity": {
+    "provider": "stub",
+    "config": {}
+  },
+  "runtime": {}
+}

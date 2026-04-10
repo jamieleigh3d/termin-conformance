@@ -1,0 +1,33 @@
+{
+  "version": "0.1.0",
+  "channels": {
+    "security-tools": {
+      "url": "https://TODO-configure-security_tools.example.com/api",
+      "protocol": "http",
+      "auth": {
+        "type": "bearer",
+        "token": "${SECURITY_TOOLS_TOKEN}"
+      },
+      "timeout_ms": 30000,
+      "retry": {
+        "max_attempts": 3,
+        "backoff_ms": 1000
+      }
+    },
+    "slack": {
+      "url": "https://TODO-configure-slack.example.com/api",
+      "protocol": "websocket",
+      "auth": {
+        "type": "bearer",
+        "token": "${SLACK_TOKEN}"
+      },
+      "reconnect": true,
+      "heartbeat_ms": 30000
+    }
+  },
+  "identity": {
+    "provider": "midway",
+    "config": {}
+  },
+  "runtime": {}
+}

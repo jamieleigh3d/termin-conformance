@@ -86,7 +86,14 @@ class ReferenceAdapter(RuntimeAdapter):
                     except (KeyError, json.JSONDecodeError):
                         pass
 
-        app = create_termin_app(ir_json, seed_data=seed_data)
+        # Load deploy config if present alongside the fixture
+        deploy_config = None
+        deploy_config_path = fixture_path.parent / f"{app_name}.deploy.json"
+        if deploy_config_path.exists():
+            deploy_config = json.loads(deploy_config_path.read_text(encoding="utf-8"))
+
+        app = create_termin_app(ir_json, seed_data=seed_data,
+                                deploy_config=deploy_config)
         client = TestClient(app)
         client.__enter__()
 

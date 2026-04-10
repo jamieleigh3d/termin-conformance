@@ -109,6 +109,41 @@ def hrportal():
     if app_info.cleanup:
         app_info.cleanup()
 
+@pytest.fixture(scope="session")
+def agent_simple():
+    app_info, session = _get_app_session("agent_simple")
+    yield session
+    if app_info.cleanup:
+        app_info.cleanup()
+
+@pytest.fixture(scope="session")
+def agent_chatbot():
+    app_info, session = _get_app_session("agent_chatbot")
+    yield session
+    if app_info.cleanup:
+        app_info.cleanup()
+
+@pytest.fixture(scope="session")
+def channel_simple():
+    app_info, session = _get_app_session("channel_simple")
+    yield session
+    if app_info.cleanup:
+        app_info.cleanup()
+
+@pytest.fixture(scope="session")
+def channel_demo():
+    app_info, session = _get_app_session("channel_demo")
+    yield session
+    if app_info.cleanup:
+        app_info.cleanup()
+
+@pytest.fixture(scope="session")
+def security_agent():
+    app_info, session = _get_app_session("security_agent")
+    yield session
+    if app_info.cleanup:
+        app_info.cleanup()
+
 
 # ── IR fixtures for introspection ──
 
@@ -130,4 +165,34 @@ def projectboard_ir():
 @pytest.fixture(scope="session")
 def hrportal_ir():
     app_info, _ = _get_app_session("hrportal")
+    return app_info.ir
+
+@pytest.fixture(scope="session")
+def agent_simple_ir():
+    app_info, _ = _get_app_session("agent_simple")
+    return app_info.ir
+
+@pytest.fixture(scope="session")
+def agent_chatbot_ir():
+    app_info, _ = _get_app_session("agent_chatbot")
+    return app_info.ir
+
+@pytest.fixture(scope="session")
+def channel_simple_ir():
+    app_info, _ = _get_app_session("channel_simple")
+    return app_info.ir
+
+@pytest.fixture(scope="session")
+def channel_demo_ir():
+    app_info, _ = _get_app_session("channel_demo")
+    return app_info.ir
+
+@pytest.fixture(scope="session")
+def security_agent_ir():
+    app_info, _ = _get_app_session("security_agent")
+    return app_info.ir
+
+@pytest.fixture(scope="session")
+def compute_demo_ir():
+    app_info, _ = _get_app_session("compute_demo")
     return app_info.ir

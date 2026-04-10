@@ -1,0 +1,69 @@
+{
+  "version": "0.1.0",
+  "channels": {
+    "github-webhooks": {
+      "url": "https://TODO-configure-github_webhooks.example.com/api",
+      "protocol": "http",
+      "auth": {
+        "type": "bearer",
+        "token": "${GITHUB_WEBHOOKS_TOKEN}"
+      },
+      "timeout_ms": 30000,
+      "retry": {
+        "max_attempts": 3,
+        "backoff_ms": 1000
+      }
+    },
+    "monitoring-feed": {
+      "url": "https://TODO-configure-monitoring_feed.example.com/api",
+      "protocol": "websocket",
+      "auth": {
+        "type": "bearer",
+        "token": "${MONITORING_FEED_TOKEN}"
+      },
+      "reconnect": true,
+      "heartbeat_ms": 30000
+    },
+    "pagerduty": {
+      "url": "https://TODO-configure-pagerduty.example.com/api",
+      "protocol": "http",
+      "auth": {
+        "type": "bearer",
+        "token": "${PAGERDUTY_TOKEN}"
+      },
+      "timeout_ms": 30000,
+      "retry": {
+        "max_attempts": 3,
+        "backoff_ms": 1000
+      }
+    },
+    "cloud-provider": {
+      "url": "https://TODO-configure-cloud_provider.example.com/api",
+      "protocol": "http",
+      "auth": {
+        "type": "bearer",
+        "token": "${CLOUD_PROVIDER_TOKEN}"
+      },
+      "timeout_ms": 30000,
+      "retry": {
+        "max_attempts": 3,
+        "backoff_ms": 1000
+      }
+    },
+    "slack": {
+      "url": "https://TODO-configure-slack.example.com/api",
+      "protocol": "websocket",
+      "auth": {
+        "type": "bearer",
+        "token": "${SLACK_TOKEN}"
+      },
+      "reconnect": true,
+      "heartbeat_ms": 30000
+    }
+  },
+  "identity": {
+    "provider": "stub",
+    "config": {}
+  },
+  "runtime": {}
+}
