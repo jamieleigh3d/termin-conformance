@@ -1,6 +1,6 @@
 """IR JSON Schema Validation Tests.
 
-Validates that every IR fixture in fixtures/ir/ conforms to the
+Validates that every IR fixture in .termin.pkg packages conforms to the
 Termin IR JSON Schema (fixtures/termin-ir-schema.json).
 
 These tests catch drift between the compiler's actual output and the
@@ -12,6 +12,7 @@ Authors: Jamie-Leigh Blake & Claude Anthropic
 """
 
 import json
+import zipfile
 import pytest
 from pathlib import Path
 
@@ -19,7 +20,6 @@ from jsonschema import validate, ValidationError, Draft202012Validator
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 SCHEMA_PATH = FIXTURES_DIR / "termin-ir-schema.json"
-IR_DIR = FIXTURES_DIR / "ir"
 
 
 # ── Load schema once ──
@@ -40,19 +40,27 @@ def ir_validator(ir_schema):
     return Draft202012Validator(ir_schema)
 
 
-# ── Discover all IR fixture files ──
+# ── Discover all IR from .termin.pkg packages ──
+
+def _extract_ir_from_pkg(pkg_path: Path) -> dict:
+    """Extract IR JSON from a .termin.pkg ZIP package."""
+    with zipfile.ZipFile(pkg_path, 'r') as zf:
+        manifest = json.loads(zf.read("manifest.json"))
+        ir_json = zf.read(manifest["ir"]["entry"]).decode("utf-8")
+        return json.loads(ir_json)
+
 
 def _ir_fixture_files():
-    """Return all IR JSON fixture files for parametrization."""
-    files = sorted(IR_DIR.glob("*_ir.json"))
+    """Return all .termin.pkg fixture files for parametrization."""
+    files = sorted(FIXTURES_DIR.glob("*.termin.pkg"))
     if not files:
-        pytest.skip("No IR fixture files found in fixtures/ir/")
+        pytest.skip("No .termin.pkg fixture files found")
     return files
 
 
 def _ir_fixture_ids():
     """Return human-readable IDs for parametrization."""
-    return [f.stem.replace("_ir", "") for f in _ir_fixture_files()]
+    return [f.stem.replace(".termin", "") for f in _ir_fixture_files()]
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -74,8 +82,7 @@ class TestIRSchemaValidation:
     )
     def test_ir_validates_against_schema(self, ir_file, ir_validator):
         """Each IR fixture must validate against the IR JSON Schema."""
-        with open(ir_file) as f:
-            ir_data = json.load(f)
+        ir_data = _extract_ir_from_pkg(ir_file)
 
         errors = list(ir_validator.iter_errors(ir_data))
         if errors:
@@ -87,7 +94,7 @@ class TestIRSchemaValidation:
             detail = "\n".join(messages)
             total = len(errors)
             pytest.fail(
-                f"{ir_file.name}: {total} schema validation error(s):\n{detail}"
+                f"{ir_file.stem}: {total} schema validation error(s):\n{detail}"
             )
 
 
@@ -131,12 +138,11 @@ class TestComputeSpecFields:
     )
     def test_compute_specs_have_required_fields(self, ir_file):
         """Every ComputeSpec must have required fields present."""
-        with open(ir_file) as f:
-            ir_data = json.load(f)
+        ir_data = _extract_ir_from_pkg(ir_file)
 
         computes = ir_data.get("computes", [])
         if not computes:
-            pytest.skip(f"{ir_file.name} has no computes")
+            pytest.skip(f"{ir_file.stem} has no computes")
 
         missing_report = []
         for i, compute in enumerate(computes):
@@ -150,7 +156,7 @@ class TestComputeSpecFields:
         if missing_report:
             detail = "\n".join(missing_report)
             pytest.fail(
-                f"{ir_file.name}: ComputeSpecs missing required fields:\n{detail}"
+                f"{ir_file.stem}: ComputeSpecs missing required fields:\n{detail}"
             )
 
     @pytest.mark.parametrize(
@@ -160,12 +166,11 @@ class TestComputeSpecFields:
     )
     def test_compute_specs_have_expected_fields(self, ir_file):
         """Every ComputeSpec should have all expected fields for completeness."""
-        with open(ir_file) as f:
-            ir_data = json.load(f)
+        ir_data = _extract_ir_from_pkg(ir_file)
 
         computes = ir_data.get("computes", [])
         if not computes:
-            pytest.skip(f"{ir_file.name} has no computes")
+            pytest.skip(f"{ir_file.stem} has no computes")
 
         missing_report = []
         for i, compute in enumerate(computes):
@@ -179,7 +184,7 @@ class TestComputeSpecFields:
         if missing_report:
             detail = "\n".join(missing_report)
             pytest.fail(
-                f"{ir_file.name}: ComputeSpecs missing expected fields:\n{detail}"
+                f"{ir_file.stem}: ComputeSpecs missing expected fields:\n{detail}"
             )
 
 
@@ -202,12 +207,11 @@ class TestContentSchemaSingular:
     )
     def test_content_schemas_have_singular(self, ir_file):
         """Every ContentSchema must have a 'singular' field."""
-        with open(ir_file) as f:
-            ir_data = json.load(f)
+        ir_data = _extract_ir_from_pkg(ir_file)
 
         content_list = ir_data.get("content", [])
         if not content_list:
-            pytest.skip(f"{ir_file.name} has no content definitions")
+            pytest.skip(f"{ir_file.stem} has no content definitions")
 
         missing = []
         for i, content in enumerate(content_list):
@@ -218,7 +222,7 @@ class TestContentSchemaSingular:
         if missing:
             detail = "\n".join(missing)
             pytest.fail(
-                f"{ir_file.name}: ContentSchemas missing 'singular':\n{detail}"
+                f"{ir_file.stem}: ContentSchemas missing 'singular':\n{detail}"
             )
 
     @pytest.mark.parametrize(
@@ -228,12 +232,11 @@ class TestContentSchemaSingular:
     )
     def test_singular_is_nonempty_string(self, ir_file):
         """The 'singular' field must be a non-empty string when present."""
-        with open(ir_file) as f:
-            ir_data = json.load(f)
+        ir_data = _extract_ir_from_pkg(ir_file)
 
         content_list = ir_data.get("content", [])
         if not content_list:
-            pytest.skip(f"{ir_file.name} has no content definitions")
+            pytest.skip(f"{ir_file.stem} has no content definitions")
 
         bad = []
         for i, content in enumerate(content_list):
@@ -247,7 +250,7 @@ class TestContentSchemaSingular:
         if bad:
             detail = "\n".join(bad)
             pytest.fail(
-                f"{ir_file.name}: ContentSchemas with invalid 'singular':\n{detail}"
+                f"{ir_file.stem}: ContentSchemas with invalid 'singular':\n{detail}"
             )
 
 
@@ -266,11 +269,10 @@ class TestIRStructuralIntegrity:
     )
     def test_ir_version_is_present(self, ir_file):
         """Every IR must declare ir_version."""
-        with open(ir_file) as f:
-            ir_data = json.load(f)
-        assert "ir_version" in ir_data, f"{ir_file.name}: missing ir_version"
+        ir_data = _extract_ir_from_pkg(ir_file)
+        assert "ir_version" in ir_data, f"{ir_file.stem}: missing ir_version"
         assert ir_data["ir_version"] == "0.5.0", (
-            f"{ir_file.name}: expected ir_version '0.5.0', got '{ir_data['ir_version']}'"
+            f"{ir_file.stem}: expected ir_version '0.5.0', got '{ir_data['ir_version']}'"
         )
 
     @pytest.mark.parametrize(
@@ -280,8 +282,7 @@ class TestIRStructuralIntegrity:
     )
     def test_all_top_level_keys_are_known(self, ir_file):
         """No unexpected top-level keys (schema has additionalProperties: false)."""
-        with open(ir_file) as f:
-            ir_data = json.load(f)
+        ir_data = _extract_ir_from_pkg(ir_file)
 
         known_keys = {
             "ir_version", "reflection_enabled", "app_id",
@@ -293,7 +294,7 @@ class TestIRStructuralIntegrity:
         }
         extra = set(ir_data.keys()) - known_keys
         assert not extra, (
-            f"{ir_file.name}: unexpected top-level keys: {sorted(extra)}"
+            f"{ir_file.stem}: unexpected top-level keys: {sorted(extra)}"
         )
 
     @pytest.mark.parametrize(
@@ -303,17 +304,16 @@ class TestIRStructuralIntegrity:
     )
     def test_content_names_are_qualified(self, ir_file):
         """Every Content 'name' must be a QualifiedName object with display/snake/pascal."""
-        with open(ir_file) as f:
-            ir_data = json.load(f)
+        ir_data = _extract_ir_from_pkg(ir_file)
 
         for i, content in enumerate(ir_data.get("content", [])):
             name = content.get("name")
             assert isinstance(name, dict), (
-                f"{ir_file.name}: content[{i}].name is not an object"
+                f"{ir_file.stem}: content[{i}].name is not an object"
             )
             for key in ("display", "snake", "pascal"):
                 assert key in name, (
-                    f"{ir_file.name}: content[{i}].name missing '{key}'"
+                    f"{ir_file.stem}: content[{i}].name missing '{key}'"
                 )
 
     @pytest.mark.parametrize(
@@ -323,8 +323,7 @@ class TestIRStructuralIntegrity:
     )
     def test_state_machine_content_refs_exist(self, ir_file):
         """Every state machine's content_ref must point to a defined Content."""
-        with open(ir_file) as f:
-            ir_data = json.load(f)
+        ir_data = _extract_ir_from_pkg(ir_file)
 
         content_names = {
             c["name"]["snake"] for c in ir_data.get("content", [])
@@ -344,7 +343,7 @@ class TestIRStructuralIntegrity:
         for sm in ir_data.get("state_machines", []):
             ref = sm["content_ref"]
             assert ref in all_names, (
-                f"{ir_file.name}: state_machine '{sm['machine_name']}' "
+                f"{ir_file.stem}: state_machine '{sm['machine_name']}' "
                 f"references unknown content_ref '{ref}'. "
                 f"Known: {sorted(all_names)}"
             )
