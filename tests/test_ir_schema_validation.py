@@ -269,8 +269,8 @@ class TestIRStructuralIntegrity:
         with open(ir_file) as f:
             ir_data = json.load(f)
         assert "ir_version" in ir_data, f"{ir_file.name}: missing ir_version"
-        assert ir_data["ir_version"] == "0.4.0", (
-            f"{ir_file.name}: expected ir_version '0.4.0', got '{ir_data['ir_version']}'"
+        assert ir_data["ir_version"] == "0.5.0", (
+            f"{ir_file.name}: expected ir_version '0.5.0', got '{ir_data['ir_version']}'"
         )
 
     @pytest.mark.parametrize(

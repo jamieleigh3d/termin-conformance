@@ -1,0 +1,14 @@
+{
+  "version": "0.1.0",
+  "channels": {},
+  "identity": {
+    "provider": "stub",
+    "config": {}
+  },
+  "runtime": {},
+  "ai_provider": {
+    "service": "anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "api_key": "${ANTHROPIC_API_KEY}"
+  }
+}

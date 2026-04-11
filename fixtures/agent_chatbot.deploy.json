@@ -1,0 +1,14 @@
+{
+  "version": "0.1.0",
+  "channels": {},
+  "identity": {
+    "provider": "stub",
+    "config": {}
+  },
+  "runtime": {},
+  "ai_provider": {
+    "service": "anthropic",
+    "model": "claude-sonnet-4-20250514",
+    "api_key": "${ANTHROPIC_API_KEY}"
+  }
+}
