@@ -40,16 +40,9 @@ _deployed_apps = {}
 def _get_app_session(app_name: str):
     """Deploy an app (or reuse cached deployment) and return a session."""
     if app_name not in _deployed_apps:
-        # Try .termin.pkg first, fall back to raw IR JSON
-        pkg_path = FIXTURES_DIR / f"{app_name}.termin.pkg"
-        ir_path = FIXTURES_DIR / "ir" / f"{app_name}_ir.json"
-
-        if pkg_path.exists():
-            fixture_path = pkg_path
-        elif ir_path.exists():
-            fixture_path = ir_path
-        else:
-            raise FileNotFoundError(f"No fixture found for app '{app_name}' in {FIXTURES_DIR}")
+        fixture_path = FIXTURES_DIR / f"{app_name}.termin.pkg"
+        if not fixture_path.exists():
+            raise FileNotFoundError(f"No .termin.pkg fixture for '{app_name}' in {FIXTURES_DIR}")
 
         app_info = _adapter.deploy(fixture_path, app_name)
         session = _adapter.create_session(app_info)
@@ -190,6 +183,16 @@ def channel_demo_ir():
 @pytest.fixture(scope="session")
 def security_agent_ir():
     app_info, _ = _get_app_session("security_agent")
+    return app_info.ir
+
+@pytest.fixture(scope="session")
+def hello_ir():
+    app_info, _ = _get_app_session("hello")
+    return app_info.ir
+
+@pytest.fixture(scope="session")
+def hello_user_ir():
+    app_info, _ = _get_app_session("hello_user")
     return app_info.ir
 
 @pytest.fixture(scope="session")

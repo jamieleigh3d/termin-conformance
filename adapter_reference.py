@@ -92,7 +92,9 @@ class ReferenceAdapter(RuntimeAdapter):
         if deploy_config_path.exists():
             deploy_config = json.loads(deploy_config_path.read_text(encoding="utf-8"))
 
-        app = create_termin_app(ir_json, seed_data=seed_data,
+        import tempfile
+        db_file = tempfile.mktemp(suffix=f"_{app_name}.db")
+        app = create_termin_app(ir_json, db_path=db_file, seed_data=seed_data,
                                 deploy_config=deploy_config)
         client = TestClient(app)
         client.__enter__()
@@ -105,6 +107,70 @@ class ReferenceAdapter(RuntimeAdapter):
         )
         self._sessions[id(info)] = session
         return info
+
+    def deploy_with_agent_mock(self, fixture_path, app_name, tool_calls):
+        """Deploy with a mock AI provider that executes the given tool calls."""
+        from termin_runtime import create_termin_app
+        from termin_runtime.ai_provider import AIProvider
+        from fastapi.testclient import TestClient
+        import tempfile
+
+        ir = self.load_ir_from_fixture(fixture_path)
+        ir_json = json.dumps(ir)
+
+        seed_data = None
+        if fixture_path.suffix == ".pkg" or fixture_path.name.endswith(".termin.pkg"):
+            with zipfile.ZipFile(fixture_path, 'r') as zf:
+                manifest = json.loads(zf.read("manifest.json"))
+                if manifest.get("seed"):
+                    try:
+                        seed_data = json.loads(zf.read(manifest["seed"]))
+                    except (KeyError, json.JSONDecodeError):
+                        pass
+
+        deploy_config = {"ai_provider": {"service": "anthropic", "model": "mock", "api_key": "mock"}}
+        deploy_path = fixture_path.parent / f"{app_name}.deploy.json"
+        if deploy_path.exists():
+            deploy_config = json.loads(deploy_path.read_text(encoding="utf-8"))
+            deploy_config["ai_provider"] = {"service": "anthropic", "model": "mock", "api_key": "mock"}
+
+        # Shared result collector
+        tool_results = []
+
+        # Patch AIProvider
+        original_startup = AIProvider.startup
+        original_agent_loop = AIProvider.agent_loop
+
+        def mock_startup(self_ai):
+            self_ai._client = True
+
+        async def mock_agent_loop(self_ai, system_prompt, user_message, tools, execute_tool):
+            for tool_name, tool_input in tool_calls:
+                result = await execute_tool(tool_name, tool_input)
+                tool_results.append({"tool": tool_name, "input": tool_input, "result": result})
+            return {"thinking": "mock agent completed", "tool_results": tool_results}
+
+        AIProvider.startup = mock_startup
+        AIProvider.agent_loop = mock_agent_loop
+
+        db_file = tempfile.mktemp(suffix=".db")
+        app = create_termin_app(ir_json, db_path=db_file, seed_data=seed_data,
+                                deploy_config=deploy_config, strict_channels=False)
+        client = TestClient(app)
+        client.__enter__()
+
+        session = _TestClientSession(client)
+        info = AppInfo(
+            base_url="http://testserver",
+            ir=ir,
+            cleanup=lambda: (
+                client.__exit__(None, None, None),
+                setattr(AIProvider, 'startup', original_startup),
+                setattr(AIProvider, 'agent_loop', original_agent_loop),
+            ),
+        )
+        self._sessions[id(info)] = session
+        return info, tool_results
 
     def create_session(self, app_info: AppInfo) -> TerminSession:
         return self._sessions[id(app_info)]

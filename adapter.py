@@ -91,6 +91,28 @@ class RuntimeAdapter(ABC):
         """
         return TerminSession(app_info.base_url)
 
+    def deploy_with_agent_mock(self, fixture_path: Path, app_name: str,
+                               tool_calls: list[tuple[str, dict]]) -> tuple[AppInfo, list]:
+        """Deploy an app with a mock AI provider that executes predetermined tool calls.
+
+        This tests the "back door" — the agent tool API that AI Computes use
+        to interact with the runtime. The mock replaces the actual LLM with a
+        function that calls execute_tool with the given sequence, capturing results.
+
+        Args:
+            fixture_path: Path to a .termin.pkg or IR JSON file.
+            app_name: Short name for the app.
+            tool_calls: List of (tool_name, tool_input) tuples the mock will execute.
+
+        Returns:
+            (AppInfo, tool_results) — the deployed app and a mutable list that will be
+            populated with tool call results once the agent Compute fires.
+        """
+        raise NotImplementedError(
+            "Agent tool testing not implemented in this adapter. "
+            "Override deploy_with_agent_mock() to support agent conformance tests."
+        )
+
     def load_ir_from_fixture(self, fixture_path: Path) -> dict:
         """Extract IR JSON from a .termin.pkg or raw .json file."""
         if fixture_path.suffix == ".json":

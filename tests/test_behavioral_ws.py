@@ -42,23 +42,18 @@ def _find_free_port():
 def _load_fixture(app_name: str):
     """Load IR JSON and optional seed/deploy data from a .termin.pkg."""
     pkg_path = FIXTURES_DIR / f"{app_name}.termin.pkg"
-    ir_path = FIXTURES_DIR / "ir" / f"{app_name}_ir.json"
-
-    if pkg_path.exists():
-        with zipfile.ZipFile(pkg_path, "r") as zf:
-            manifest = json.loads(zf.read("manifest.json"))
-            ir_json = zf.read(manifest["ir"]["entry"]).decode("utf-8")
-            seed_data = None
-            if manifest.get("seed"):
-                try:
-                    seed_data = json.loads(zf.read(manifest["seed"]))
-                except (KeyError, json.JSONDecodeError):
-                    pass
-        return ir_json, seed_data
-    elif ir_path.exists():
-        return ir_path.read_text(encoding="utf-8"), None
-    else:
-        raise FileNotFoundError(f"No fixture for '{app_name}' in {FIXTURES_DIR}")
+    if not pkg_path.exists():
+        raise FileNotFoundError(f"No .termin.pkg fixture for '{app_name}' in {FIXTURES_DIR}")
+    with zipfile.ZipFile(pkg_path, "r") as zf:
+        manifest = json.loads(zf.read("manifest.json"))
+        ir_json = zf.read(manifest["ir"]["entry"]).decode("utf-8")
+        seed_data = None
+        if manifest.get("seed"):
+            try:
+                seed_data = json.loads(zf.read(manifest["seed"]))
+            except (KeyError, json.JSONDecodeError):
+                pass
+    return ir_json, seed_data
 
 
 def _load_deploy_config(app_name: str):
