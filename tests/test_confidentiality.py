@@ -145,7 +145,7 @@ class TestFieldRedaction:
         r = hrportal.get(f"/api/v1/employees/{self.employee_id}")
         emp = r.json()
         assert emp["salary"] == 95000
-        assert emp["bonus_rate"] == 0.08
+        assert float(emp["bonus_rate"]) == 0.08
         assert emp["ssn"] == "999-88-7777"
         assert emp["phone"] == "555-9999"
 

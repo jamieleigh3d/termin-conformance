@@ -92,7 +92,9 @@ class ReferenceAdapter(RuntimeAdapter):
         if deploy_config_path.exists():
             deploy_config = json.loads(deploy_config_path.read_text(encoding="utf-8"))
 
-        app = create_termin_app(ir_json, seed_data=seed_data,
+        import tempfile
+        db_file = tempfile.mktemp(suffix=f"_{app_name}.db")
+        app = create_termin_app(ir_json, db_path=db_file, seed_data=seed_data,
                                 deploy_config=deploy_config)
         client = TestClient(app)
         client.__enter__()
