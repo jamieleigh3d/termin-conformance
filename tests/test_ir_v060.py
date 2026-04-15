@@ -236,3 +236,57 @@ class TestAllFixturesV060:
                 assert "one_of_values" in f, (
                     f"[{fixture_name}] Field '{f['name']}' missing one_of_values"
                 )
+
+
+# ═══════════════════════════════════════════════════════════════
+# TRANSITION FEEDBACK (Issue #006)
+# ═══════════════════════════════════════════════════════════════
+
+
+class TestTransitionFeedback:
+    """Test that transition feedback (toast/banner) appears correctly in the IR."""
+
+    def test_warehouse_activate_has_feedback(self, warehouse_ir):
+        """Warehouse draft→active should have success toast + error banner."""
+        sm = [s for s in warehouse_ir["state_machines"]
+              if s["machine_name"] == "product lifecycle"][0]
+        t = [t for t in sm["transitions"]
+             if t["from_state"] == "draft" and t["to_state"] == "active"][0]
+        assert "feedback" in t
+        assert len(t["feedback"]) == 2
+        assert t["feedback"][0]["trigger"] == "success"
+        assert t["feedback"][0]["style"] == "toast"
+        assert t["feedback"][0]["is_expr"] is True
+        assert t["feedback"][1]["trigger"] == "error"
+        assert t["feedback"][1]["style"] == "banner"
+        assert t["feedback"][1]["is_expr"] is False
+
+    def test_helpdesk_resolve_has_banner_with_dismiss(self, helpdesk_ir):
+        """Helpdesk in progress→resolved should have banner with 10s dismiss."""
+        sm = [s for s in helpdesk_ir["state_machines"]
+              if s["machine_name"] == "ticket lifecycle"][0]
+        t = [t for t in sm["transitions"]
+             if t["from_state"] == "in progress" and t["to_state"] == "resolved"][0]
+        assert len(t["feedback"]) == 1
+        fb = t["feedback"][0]
+        assert fb["style"] == "banner"
+        assert fb["dismiss_seconds"] == 10
+        assert fb["is_expr"] is True
+
+    def test_transitions_without_feedback_have_empty_array(self, compute_demo_ir):
+        """Transitions without feedback should have feedback: []."""
+        for sm in compute_demo_ir.get("state_machines", []):
+            for t in sm["transitions"]:
+                assert "feedback" in t
+                assert isinstance(t["feedback"], list)
+
+    @pytest.mark.parametrize("fixture_name", TestAllFixturesV060.ALL_FIXTURES)
+    def test_feedback_field_present_on_all_transitions(self, fixture_name, request):
+        """Every transition in every fixture must have a feedback field."""
+        ir = request.getfixturevalue(fixture_name)
+        for sm in ir.get("state_machines", []):
+            for t in sm["transitions"]:
+                assert "feedback" in t, (
+                    f"[{fixture_name}] Transition {t['from_state']}→{t['to_state']} "
+                    f"in '{sm['machine_name']}' missing feedback field"
+                )

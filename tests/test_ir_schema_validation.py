@@ -347,3 +347,65 @@ class TestIRStructuralIntegrity:
                 f"references unknown content_ref '{ref}'. "
                 f"Known: {sorted(all_names)}"
             )
+
+    @pytest.mark.parametrize(
+        "ir_file",
+        _ir_fixture_files(),
+        ids=_ir_fixture_ids(),
+    )
+    def test_access_grants_have_nonempty_verbs(self, ir_file):
+        """Every access_grant must have at least one verb (issue #007).
+
+        Empty verbs arrays mean the compiler failed to parse a compound
+        verb phrase like 'can view or create'. This is a security bug:
+        it silently denies all operations for that scope+content combo.
+        """
+        ir_data = _extract_ir_from_pkg(ir_file)
+        valid_verbs = {"VIEW", "CREATE", "UPDATE", "DELETE"}
+
+        empty_grants = []
+        bad_verb_grants = []
+        for i, grant in enumerate(ir_data.get("access_grants", [])):
+            verbs = grant.get("verbs", [])
+            if not verbs:
+                empty_grants.append(
+                    f"  grant[{i}]: {grant['content']}/{grant['scope']} has empty verbs"
+                )
+            for v in verbs:
+                if v not in valid_verbs:
+                    bad_verb_grants.append(
+                        f"  grant[{i}]: {grant['content']}/{grant['scope']} "
+                        f"has unrecognized verb '{v}'"
+                    )
+
+        errors = empty_grants + bad_verb_grants
+        if errors:
+            detail = "\n".join(errors)
+            pytest.fail(f"{ir_file.stem}: access_grant verb issues:\n{detail}")
+
+    @pytest.mark.parametrize(
+        "ir_file",
+        _ir_fixture_files(),
+        ids=_ir_fixture_ids(),
+    )
+    def test_access_grants_reference_declared_scopes(self, ir_file):
+        """Every access_grant scope must be declared in auth.scopes."""
+        ir_data = _extract_ir_from_pkg(ir_file)
+
+        declared_scopes = set(ir_data.get("auth", {}).get("scopes", []))
+        if not declared_scopes:
+            pytest.skip(f"{ir_file.stem} has no declared scopes")
+
+        bad = []
+        for i, grant in enumerate(ir_data.get("access_grants", [])):
+            scope = grant.get("scope", "")
+            if scope not in declared_scopes:
+                bad.append(
+                    f"  grant[{i}]: scope '{scope}' not in auth.scopes"
+                )
+
+        if bad:
+            detail = "\n".join(bad)
+            pytest.fail(
+                f"{ir_file.stem}: access_grants reference undeclared scopes:\n{detail}"
+            )
