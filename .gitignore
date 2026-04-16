@@ -6,3 +6,15 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+venv/
+
+# Coverage
+.coverage
+coverage.json
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+
+# Note: fixtures/*.termin.pkg ARE tracked — they're test inputs, not build artifacts
