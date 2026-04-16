@@ -17,4 +17,10 @@ htmlcov/
 .vscode/
 .idea/
 
+# VM files (Work AI)
+*.vm
+
+# Termin packages (root level — not fixtures)
+/*.termin.pkg
+
 # Note: fixtures/*.termin.pkg ARE tracked — they're test inputs, not build artifacts
