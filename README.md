@@ -1,6 +1,6 @@
 # Termin Conformance Suite
 
-Conformance test suite and specification for the Termin runtime. Contains the IR JSON Schema, Runtime Implementer's Guide, package format spec, test `.termin.pkg` fixtures, and 712 behavioral tests. Everything needed to build and validate a conforming Termin runtime.
+Conformance test suite and specification for the Termin runtime. Contains the IR JSON Schema, Runtime Implementer's Guide, package format spec, test `.termin.pkg` fixtures, and 729 behavioral tests. Everything needed to build and validate a conforming Termin runtime.
 
 ## What's Inside
 
@@ -121,13 +121,13 @@ The suite deploys 12 test apps once per session and runs all tests via HTTP and 
 
 ## Specifications
 
-- **[IR JSON Schema](specs/termin-ir-schema.json)** — Machine-readable contract defining the structure of compiled Termin applications (IR version 0.7.0)
+- **[IR JSON Schema](specs/termin-ir-schema.json)** — Machine-readable contract defining the structure of compiled Termin applications (IR version 0.8.0)
 - **[Runtime Implementer's Guide](specs/termin-runtime-implementers-guide.md)** — How to build a conforming runtime: storage, access control, state machines, events, presentation, CEL expressions, WebSocket protocol, behavioral contract
 - **[Package Format](specs/termin-package-format.md)** — `.termin.pkg` ZIP structure, manifest versioning, checksums, revision tracking
 
 ## IR Version
 
-Current: **0.7.0**
+Current: **0.8.0** (in development)
 
 ### 0.7.0 (April 2026)
 
