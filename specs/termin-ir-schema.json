@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://termin.dev/schemas/ir/0.5.0/appspec.json",
+  "$id": "https://termin.dev/schemas/ir/0.7.0/appspec.json",
   "title": "Termin AppSpec IR",
   "description": "The complete Intermediate Representation of a compiled Termin application. Produced by the Termin compiler, consumed by any conforming Termin runtime.",
   "type": "object",
@@ -9,7 +9,7 @@
   "properties": {
     "ir_version": {
       "type": "string",
-      "const": "0.5.0",
+      "const": "0.7.0",
       "description": "Semantic version of the IR schema. Runtimes should reject versions they don't support."
     },
     "reflection_enabled": {
@@ -210,6 +210,12 @@
           "items": { "type": "string" },
           "default": [],
           "description": "Confidentiality labels attached to this field. Data in this field is only accessible to identities holding all listed scopes. Empty means unrestricted within the Content's own access grants."
+        },
+        "one_of_values": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Field-level constraint: value must be one of the listed strings. Empty means no constraint. Unified with enum_values — one_of can apply to any base type, not just enums."
         }
       }
     },
@@ -252,14 +258,59 @@
           "items": { "type": "string" },
           "default": [],
           "description": "Default confidentiality scopes applied to all records in this Content. Individual fields may declare additional scopes. Empty means no Content-level confidentiality restriction."
+        },
+        "audit": {
+          "type": "string",
+          "enum": ["actions", "debug", "none"],
+          "default": "actions",
+          "description": "Audit level for this Content. 'actions' (default): log event type, record ID, field names, identity, timestamp — never field values. 'debug': log full field values (opt-in, development only). 'none': suppress logging entirely."
+        },
+        "dependent_values": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/DependentValueSpec" },
+          "default": [],
+          "description": "Conditional constraints on field values. When a condition holds, another field is constrained to specific values, required to equal a value, or given a default."
+        }
+      }
+    },
+
+    "DependentValueSpec": {
+      "type": "object",
+      "description": "A conditional constraint: When [condition], [field] must be/defaults to [value(s)].",
+      "required": ["field", "constraint"],
+      "additionalProperties": false,
+      "properties": {
+        "when": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "CEL condition expression. Null means unconditional constraint."
+        },
+        "field": {
+          "type": "string",
+          "description": "Snake_case field name this constraint applies to."
+        },
+        "constraint": {
+          "type": "string",
+          "enum": ["one_of", "equals", "default"],
+          "description": "Constraint type: 'one_of' restricts to allowed values, 'equals' requires exact match, 'default' sets a default if field not provided."
+        },
+        "values": {
+          "type": "array",
+          "items": {},
+          "default": [],
+          "description": "Allowed values for 'one_of' constraint."
+        },
+        "value": {
+          "description": "Target value for 'equals' or 'default' constraint.",
+          "default": null
         }
       }
     },
 
     "Verb": {
       "type": "string",
-      "enum": ["VIEW", "CREATE", "UPDATE", "DELETE"],
-      "description": "CRUD operation verb for access control."
+      "enum": ["VIEW", "CREATE", "UPDATE", "DELETE", "AUDIT"],
+      "description": "CRUD+Audit operation verb for access control. AUDIT gates read access to execution traces (D-20)."
     },
 
     "AccessGrant": {
@@ -326,9 +377,40 @@
       }
     },
 
+    "TransitionFeedbackSpec": {
+      "type": "object",
+      "description": "Feedback notification shown to the user after a state transition succeeds or fails.",
+      "required": ["trigger", "style", "message", "is_expr"],
+      "additionalProperties": false,
+      "properties": {
+        "trigger": {
+          "type": "string",
+          "enum": ["success", "error"],
+          "description": "When to show this feedback: on successful transition or on failure."
+        },
+        "style": {
+          "type": "string",
+          "enum": ["toast", "banner"],
+          "description": "Notification style. Toast: auto-dismiss (default 5s), bottom-right. Banner: persistent, stackable, inline."
+        },
+        "message": {
+          "type": "string",
+          "description": "Message text. If is_expr is true, this is a CEL expression with {singular}.*, from_state, to_state, and User.* in scope."
+        },
+        "is_expr": {
+          "type": "boolean",
+          "description": "True if message is a CEL expression (backtick-delimited in DSL), false if literal string."
+        },
+        "dismiss_seconds": {
+          "type": ["integer", "null"],
+          "description": "Auto-dismiss timer in seconds. Null means use type default (toast: 5s, banner: no auto-dismiss)."
+        }
+      }
+    },
+
     "TransitionSpec": {
       "type": "object",
-      "description": "A single allowed state transition, with a required scope.",
+      "description": "A single allowed state transition, with a required scope and optional user feedback.",
       "required": ["from_state", "to_state", "required_scope"],
       "additionalProperties": false,
       "properties": {
@@ -337,6 +419,11 @@
         "required_scope": {
           "type": "string",
           "description": "Scope the caller's identity must hold to perform this transition."
+        },
+        "feedback": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TransitionFeedbackSpec" },
+          "description": "Optional notification feedback to show the user after this transition. Empty array if no feedback declared."
         }
       }
     },
@@ -539,10 +626,10 @@
         "type": {
           "type": "string",
           "enum": [
-            "text", "data_table", "form", "field_input", "section",
+            "text", "data_table", "chat", "form", "field_input", "section",
             "aggregation", "stat_breakdown", "chart",
             "filter", "search", "highlight", "subscribe",
-            "related", "action_button"
+            "related", "action_button", "semantic_mark"
           ],
           "description": "Component type. Determines which props are expected and how the component renders."
         },
@@ -808,6 +895,22 @@
           "type": ["string", "null"],
           "default": null,
           "description": "Content type name for 'Output creates X'. When set, the LLM response creates a new record in this content type instead of updating the triggering record."
+        },
+        "audit_level": {
+          "type": "string",
+          "enum": ["none", "actions", "debug"],
+          "default": "actions",
+          "description": "D-20: Audit level for compute traces. 'none': no trace. 'actions' (default): outcome + what the compute did. 'debug': everything including system prompt and thinking."
+        },
+        "audit_scope": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "D-20: Scope string from 'Anyone with X can audit'. Gates AUDIT access to this compute's trace log."
+        },
+        "audit_content_ref": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "D-20: Snake_case name of the auto-generated audit log Content table (compute_audit_log_{name}). Null when audit_level is 'none'."
         }
       }
     },

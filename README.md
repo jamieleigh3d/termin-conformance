@@ -121,13 +121,22 @@ The suite deploys 12 test apps once per session and runs all tests via HTTP and 
 
 ## Specifications
 
-- **[IR JSON Schema](specs/termin-ir-schema.json)** — Machine-readable contract defining the structure of compiled Termin applications (IR version 0.5.0)
+- **[IR JSON Schema](specs/termin-ir-schema.json)** — Machine-readable contract defining the structure of compiled Termin applications (IR version 0.7.0)
 - **[Runtime Implementer's Guide](specs/termin-runtime-implementers-guide.md)** — How to build a conforming runtime: storage, access control, state machines, events, presentation, CEL expressions, WebSocket protocol, behavioral contract
 - **[Package Format](specs/termin-package-format.md)** — `.termin.pkg` ZIP structure, manifest versioning, checksums, revision tracking
 
 ## IR Version
 
-Current: **0.5.0**
+Current: **0.7.0**
+
+### 0.7.0 (April 2026)
+
+- **Auto-generated REST API (D-11)** — Every Content gets CRUD at `/api/v1/{content}` automatically. Headless services (no user stories) fully supported. `Expose a REST API` syntax removed.
+- **Agent observability (D-20)** — AUDIT verb, auto-generated `compute_audit_log_{name}` Content per Compute, trace recording, audit levels (none/actions/debug), redaction in flight.
+- **Chat component (D-09)** — New `chat` IR component type. Not AI-specific — any Content with role+content fields. Integrated input, WebSocket subscription.
+- **Transition feedback** — `TransitionFeedbackSpec` on transitions: trigger, style (toast/banner), message (CEL or literal), dismiss_seconds.
+- **Compound verbs** — All verb combinations supported in access grants (view, create, update, delete, audit in any combination).
+- **SQL safety** — Runtime validates all IR identifiers at startup, rejects unsafe names. SQL centralized in storage.py.
 
 ### 0.5.0 (April 2026)
 
