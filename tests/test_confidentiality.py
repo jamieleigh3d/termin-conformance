@@ -69,7 +69,7 @@ class TestHRPortalSmoke:
 
     def test_hrportal_salary_reviews_visible_to_hr(self, hrportal):
         hrportal.set_role("hr business partner")
-        r = hrportal.get("/api/v1/salary-reviews")
+        r = hrportal.get("/api/v1/salary_reviews")
         assert r.status_code == 200
 
     def test_hrportal_employee_role_can_view(self, hrportal):
@@ -183,19 +183,19 @@ class TestContentLevelScope:
     def test_employee_cannot_list_salary_reviews(self, hrportal):
         """Employee lacks access_salary — salary_reviews should be 403."""
         hrportal.set_role("employee")
-        r = hrportal.get("/api/v1/salary-reviews")
+        r = hrportal.get("/api/v1/salary_reviews")
         assert r.status_code == 403
 
     def test_manager_cannot_list_salary_reviews(self, hrportal):
         """Manager lacks access_salary — salary_reviews should be 403."""
         hrportal.set_role("manager")
-        r = hrportal.get("/api/v1/salary-reviews")
+        r = hrportal.get("/api/v1/salary_reviews")
         assert r.status_code == 403
 
     def test_hr_can_list_salary_reviews(self, hrportal):
         """HR Business Partner has access_salary — salary_reviews visible."""
         hrportal.set_role("hr business partner")
-        r = hrportal.get("/api/v1/salary-reviews")
+        r = hrportal.get("/api/v1/salary_reviews")
         assert r.status_code == 200
 
 
@@ -319,7 +319,7 @@ class TestSalaryReviewStateMachine:
         eid = emp.json()["id"]
 
         # Create salary review
-        r = hrportal.post("/api/v1/salary-reviews", json={
+        r = hrportal.post("/api/v1/salary_reviews", json={
             "employee": eid, "old_salary": 90000, "new_salary": 100000,
             "reason": "Annual review",
         })
@@ -333,7 +333,7 @@ class TestSalaryReviewStateMachine:
         assert r2.status_code in (200, 303)
 
         # Verify
-        reviews = hrportal.get("/api/v1/salary-reviews").json()
+        reviews = hrportal.get("/api/v1/salary_reviews").json()
         match = [s for s in reviews if s["id"] == sr_id]
         assert match[0]["status"] == "approved"
 
@@ -341,7 +341,7 @@ class TestSalaryReviewStateMachine:
         r3 = hrportal.post(f"/_transition/salary_reviews/{sr_id}/applied")
         assert r3.status_code in (200, 303)
 
-        reviews = hrportal.get("/api/v1/salary-reviews").json()
+        reviews = hrportal.get("/api/v1/salary_reviews").json()
         match = [s for s in reviews if s["id"] == sr_id]
         assert match[0]["status"] == "applied"
 

@@ -56,7 +56,7 @@ class TestRequiredFields:
     def test_required_reference_field(self, warehouse):
         """stock_levels.product is required reference -- must be valid."""
         warehouse.set_role("warehouse clerk")
-        r = warehouse.post("/api/v1/stock-levels", json={
+        r = warehouse.post("/api/v1/stock_levels", json={
             "warehouse": "W1", "quantity": 10, "reorder_threshold": 5,
             # Missing 'product' (required FK)
         })
@@ -220,7 +220,7 @@ class TestFieldTypeRoundtrip:
             "sku": _uid(), "name": "FK Test", "category": "raw material",
         })
         pid = pr.json()["id"]
-        r = warehouse.post("/api/v1/stock-levels", json={
+        r = warehouse.post("/api/v1/stock_levels", json={
             "product": pid, "warehouse": "W1",
             "quantity": 100, "reorder_threshold": 10,
         })

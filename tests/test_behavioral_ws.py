@@ -214,13 +214,15 @@ class TestBehavioralWebSocket:
                     "category": "raw material",
                 },
                 cookies={
-                    "termin_role": "warehouse clerk",
+                    "termin_role": "warehouse manager",
                     "termin_user_name": "User",
                 },
             )
             assert create_resp.status_code == 201
+            # v0.7 auto-CRUD uses {id} not {sku}
+            product_id = create_resp.json()["id"]
 
-        # Now subscribe and update (warehouse uses {sku} as lookup)
+        # Now subscribe and update
         async with websockets.client.connect(server.ws_url) as ws:
             await ws.send(json.dumps({
                 "v": 1, "ch": "content.products", "op": "subscribe",
@@ -230,7 +232,7 @@ class TestBehavioralWebSocket:
 
             async with httpx.AsyncClient() as client:
                 update_resp = await client.put(
-                    f"{server.base_url}/api/v1/products/{unique_sku}",
+                    f"{server.base_url}/api/v1/products/{product_id}",
                     json={"description": "updated-via-ws-test"},
                     cookies={
                         "termin_role": "warehouse clerk",

@@ -350,7 +350,7 @@ class TestErrorStatus403:
     def test_content_scope_confidentiality_denied(self, hrportal):
         """confidentiality.py: content-level scope denies access."""
         hrportal.set_role("employee")
-        r = hrportal.get("/api/v1/salary-reviews")
+        r = hrportal.get("/api/v1/salary_reviews")
         assert r.status_code == 403
 
 
@@ -620,25 +620,25 @@ class TestContentLevelConfidentiality:
     def test_employee_blocked_from_salary_reviews(self, hrportal):
         """confidentiality.py: content-level scope -> 403."""
         hrportal.set_role("employee")
-        r = hrportal.get("/api/v1/salary-reviews")
+        r = hrportal.get("/api/v1/salary_reviews")
         assert r.status_code == 403
 
     def test_manager_blocked_from_salary_reviews(self, hrportal):
         """confidentiality.py: manager lacks access_salary -> 403."""
         hrportal.set_role("manager")
-        r = hrportal.get("/api/v1/salary-reviews")
+        r = hrportal.get("/api/v1/salary_reviews")
         assert r.status_code == 403
 
     def test_hr_can_access_salary_reviews(self, hrportal):
         """confidentiality.py: HR has access_salary -> 200."""
         hrportal.set_role("hr business partner")
-        r = hrportal.get("/api/v1/salary-reviews")
+        r = hrportal.get("/api/v1/salary_reviews")
         assert r.status_code == 200
 
     def test_employee_cannot_create_salary_review(self, hrportal):
         """confidentiality.py: CREATE on content-scoped type -> 403."""
         hrportal.set_role("employee")
-        r = hrportal.post("/api/v1/salary-reviews", json={
+        r = hrportal.post("/api/v1/salary_reviews", json={
             "employee": 1, "old_salary": 50000, "new_salary": 55000,
             "reason": "test",
         })
@@ -694,12 +694,12 @@ class TestStateMachineEdgeCases:
             "sku": sku, "name": f"SM Edge {sku}", "category": "raw material",
         })
         assert r.status_code == 201, f"Create failed: {r.status_code} {r.text}"
-        return sku
+        return r.json()["id"]
 
     def test_initial_state_enforced(self, warehouse):
         """state.py: new record always gets initial state."""
-        sku = self._create_product(warehouse)
-        r = warehouse.get(f"/api/v1/products/{sku}")
+        pid = self._create_product(warehouse)
+        r = warehouse.get(f"/api/v1/products/{pid}")
         assert r.status_code == 200
         data = r.json()
         assert data.get("status") == "draft", f"Expected draft, got {data}"
@@ -716,33 +716,33 @@ class TestStateMachineEdgeCases:
 
     def test_transition_changes_status_in_db(self, warehouse):
         """state.py: transition persists to storage."""
-        sku = self._create_product(warehouse)
-        warehouse.post(f"/api/v1/products/{sku}/activate")
-        r = warehouse.get(f"/api/v1/products/{sku}")
+        pid = self._create_product(warehouse)
+        warehouse.post(f"/api/v1/products/{pid}/_transition/active")
+        r = warehouse.get(f"/api/v1/products/{pid}")
         assert r.json().get("status") == "active"
 
     def test_failed_transition_preserves_status(self, warehouse):
         """state.py: rejected transition doesn't change status."""
-        sku = self._create_product(warehouse)
+        pid = self._create_product(warehouse)
         # draft -> discontinued requires going through active first
-        r = warehouse.post(f"/api/v1/products/{sku}/discontinue")
+        r = warehouse.post(f"/api/v1/products/{pid}/_transition/discontinued")
         assert r.status_code in (409, 400, 403), f"Expected error, got {r.status_code}"
-        r = warehouse.get(f"/api/v1/products/{sku}")
+        r = warehouse.get(f"/api/v1/products/{pid}")
         assert r.json().get("status") == "draft"
 
     def test_reverse_transition_after_lifecycle(self, warehouse):
         """state.py: activate after discontinue."""
-        sku = self._create_product(warehouse)
-        warehouse.post(f"/api/v1/products/{sku}/activate")
-        warehouse.post(f"/api/v1/products/{sku}/discontinue")
+        pid = self._create_product(warehouse)
+        warehouse.post(f"/api/v1/products/{pid}/_transition/active")
+        warehouse.post(f"/api/v1/products/{pid}/_transition/discontinued")
         # Check if reactivation is allowed
-        r = warehouse.post(f"/api/v1/products/{sku}/activate")
+        r = warehouse.post(f"/api/v1/products/{pid}/_transition/active")
         # Some state machines allow this, some don't
 
     def test_transition_to_nonexistent_state(self, warehouse):
         """state.py: target state not in machine -> 404 (no route)."""
-        sku = self._create_product(warehouse)
-        r = warehouse.post(f"/api/v1/products/{sku}/completely_fake_state")
+        pid = self._create_product(warehouse)
+        r = warehouse.post(f"/api/v1/products/{pid}/_transition/completely_fake_state")
         assert r.status_code in (404, 405)
 
     def test_helpdesk_multi_word_state(self, helpdesk):
@@ -790,7 +790,7 @@ class TestCRUDEdgeCases:
     def test_list_empty_content(self, warehouse):
         """storage.py: listing content returns empty array initially."""
         warehouse.set_role("warehouse manager")
-        r = warehouse.get("/api/v1/alerts")
+        r = warehouse.get("/api/v1/reorder_alerts")
         assert r.status_code == 200
         assert isinstance(r.json(), list)
 
@@ -1382,7 +1382,7 @@ class TestHRPortalSalaryReviewLifecycle:
             "name": f"SRTarget {_uid()}", "department": "Eng",
         })
         eid = emp.json()["id"]
-        r = hrportal.post("/api/v1/salary-reviews", json={
+        r = hrportal.post("/api/v1/salary_reviews", json={
             "employee": eid, "old_salary": 80000,
             "new_salary": 90000, "reason": "Performance",
         })
@@ -1396,7 +1396,7 @@ class TestHRPortalSalaryReviewLifecycle:
             "name": f"SRApprove {_uid()}", "department": "Eng",
         })
         eid = emp.json()["id"]
-        sr = hrportal.post("/api/v1/salary-reviews", json={
+        sr = hrportal.post("/api/v1/salary_reviews", json={
             "employee": eid, "old_salary": 70000,
             "new_salary": 75000, "reason": "Annual",
         })
@@ -1411,7 +1411,7 @@ class TestHRPortalSalaryReviewLifecycle:
             "name": f"SRFull {_uid()}", "department": "Eng",
         })
         eid = emp.json()["id"]
-        sr = hrportal.post("/api/v1/salary-reviews", json={
+        sr = hrportal.post("/api/v1/salary_reviews", json={
             "employee": eid, "old_salary": 60000,
             "new_salary": 65000, "reason": "Promo",
         })

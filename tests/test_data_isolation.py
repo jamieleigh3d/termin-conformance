@@ -43,11 +43,11 @@ class TestCrossContentIsolation:
 
     def test_create_product_doesnt_affect_stock(self, warehouse):
         warehouse.set_role("warehouse manager")
-        before = warehouse.get("/api/v1/stock-levels").json()
+        before = warehouse.get("/api/v1/stock_levels").json()
         warehouse.post("/api/v1/products", json={
             "sku": _uid(), "name": "Iso Test", "category": "raw material",
         })
-        after = warehouse.get("/api/v1/stock-levels").json()
+        after = warehouse.get("/api/v1/stock_levels").json()
         assert len(before) == len(after)
 
     def test_delete_product_doesnt_affect_alerts(self, warehouse):
@@ -56,9 +56,9 @@ class TestCrossContentIsolation:
             "sku": _uid(), "name": "Iso Del", "category": "raw material",
         })
         pid = r.json()["id"]
-        alerts_before = warehouse.get("/api/v1/reorder-alerts").json()
+        alerts_before = warehouse.get("/api/v1/reorder_alerts").json()
         warehouse.delete(f"/api/v1/products/{pid}")
-        alerts_after = warehouse.get("/api/v1/reorder-alerts").json()
+        alerts_after = warehouse.get("/api/v1/reorder_alerts").json()
         assert len(alerts_before) == len(alerts_after)
 
 
