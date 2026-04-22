@@ -5,7 +5,7 @@
   "name": "Security Agent",
   "description": "Autonomous agent that patrols the app fabric for security issues, auto-remediates safe fixes, and escalates findings that require human judgment",
   "auth": {
-    "provider": "midway",
+    "provider": "oidc",
     "scopes": [
       "findings.view",
       "findings.triage",

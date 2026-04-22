@@ -2,22 +2,29 @@
   "version": "0.1.0",
   "channels": {
     "note-sync": {
-      "url": "http://localhost:8000/webhooks/echo_receiver",
+      "url": "https://TODO-configure-note_sync.example.com/api",
       "protocol": "http",
       "auth": {
-        "type": "none"
+        "type": "bearer",
+        "token": "${NOTE_SYNC_TOKEN}"
       },
-      "timeout_ms": 5000,
+      "timeout_ms": 30000,
       "retry": {
-        "max_attempts": 1,
-        "backoff_ms": 500
+        "max_attempts": 3,
+        "backoff_ms": 1000
       }
     },
     "echo-receiver": {
-      "url": "http://localhost:8000/webhooks/echo_receiver",
+      "url": "https://TODO-configure-echo_receiver.example.com/api",
       "protocol": "http",
       "auth": {
-        "type": "none"
+        "type": "bearer",
+        "token": "${ECHO_RECEIVER_TOKEN}"
+      },
+      "timeout_ms": 30000,
+      "retry": {
+        "max_attempts": 3,
+        "backoff_ms": 1000
       }
     }
   },
