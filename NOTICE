@@ -1,0 +1,33 @@
+Termin Conformance Suite
+Copyright 2026 Jamie-Leigh Blake and Termin project contributors
+
+This product includes software developed by Jamie-Leigh Blake and the
+Termin project contributors, licensed under the Apache License,
+Version 2.0. A complete list of contributors is maintained in the
+repository's commit history.
+
+The IR JSON Schema, Runtime Implementer's Guide, .termin.pkg package
+format specification, and conformance test suite contained in this
+repository together define the contract every conforming Termin
+runtime must satisfy. The reference implementation lives in the
+separate termin-compiler repository
+(github.com/jamieleigh3d/termin-compiler) and passes this suite.
+
+This product depends on third-party software, each distributed under
+its own open-source license. A non-exhaustive list of test-time
+dependencies and their licenses:
+
+  - pytest (MIT)
+  - requests (Apache-2.0)
+  - jsonschema (MIT)
+
+Optional dependencies for browser-based conformance tests:
+
+  - playwright (Apache-2.0)
+
+The test fixtures under fixtures/ are .termin.pkg archives generated
+by the termin-compiler reference implementation. The example source
+files from which they were compiled are distributed with termin-compiler
+and are themselves Apache-2.0 licensed.
+
+See each dependency's distribution for the full text of its license.
