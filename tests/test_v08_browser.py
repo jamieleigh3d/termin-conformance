@@ -215,6 +215,78 @@ class TestInlineEditFlow:
         )
 
 
+class TestGeneralStreamHydrator:
+    """The client-side general streaming hydrator updates any DOM
+    element matching `[data-termin-row-id=X] [data-termin-field=Y]`
+    when a compute.stream event arrives for that (record, field) pair.
+
+    This covers the agent_simple pattern — LLM compute writes to a
+    row's field and the table cell renders tokens as they arrive —
+    without relying on the chat component's pending-bubble handler.
+
+    Uses `page.evaluate` to drive the client hydrator directly via
+    the notifySubscribers() path, bypassing the WS round-trip. This
+    lets us verify the general hydrator without a live LLM. The
+    server-side publish contract is covered by the compiler-repo
+    tests in test_llm_streaming.py.
+    """
+
+    def test_field_delta_updates_matching_table_cell(self, seeded_warehouse, browser_page):
+        warehouse, pid = seeded_warehouse
+        _set_role_cookie(browser_page, warehouse.base_url, "warehouse manager")
+        browser_page.goto(f"{warehouse.base_url}/inventory_dashboard")
+        browser_page.wait_for_selector(
+            '[data-termin-component="data_table"]', timeout=5000)
+        # Also wait for hydrateComputeStream to have run (it attaches
+        # its subscribe callback on hydrateAll).
+        browser_page.wait_for_function(
+            """() => window.__TERMIN_HYDRATED__ === true
+                 || document.querySelector('[data-termin-component=\"data_table\"]') !== null""",
+            timeout=3000,
+        )
+
+        # Simulate a field_delta push for the seeded product's
+        # description cell. The hydrator should append to the cell.
+        # Precondition: the test hook must be present.
+        hook_present = browser_page.evaluate(
+            "() => typeof window.__TERMIN_NOTIFY__ === 'function'")
+        assert hook_present, "termin.js test hook __TERMIN_NOTIFY__ is missing"
+
+        # Use the `name` column (present in warehouse's displayed columns).
+        test_delta = "StreamedText"
+        browser_page.evaluate(
+            """(args) => {
+                const [rowId, field, delta] = args;
+                const data = {
+                    invocation_id: "test-inv-1",
+                    compute: "complete",
+                    mode: "tool_use",
+                    tool: "set_output",
+                    content_name: "products",
+                    record_id: rowId,
+                    field: field,
+                    delta: delta,
+                    done: false,
+                };
+                window.__TERMIN_NOTIFY__(
+                    "compute.stream.test-inv-1.field." + field, data);
+            }""",
+            [pid, "name", test_delta],
+        )
+
+        # The cell text should now include the delta.
+        browser_page.wait_for_function(
+            """([rowId, expected]) => {
+                const cell = document.querySelector(
+                    `tr[data-termin-row-id="${rowId}"] ` +
+                    `td[data-termin-field="name"]`);
+                return cell && (cell.textContent || "").includes(expected);
+            }""",
+            arg=[pid, test_delta],
+            timeout=3000,
+        )
+
+
 class TestDeleteButtonFlow:
     """Delete button wired to fetch(DELETE) with confirm prompt."""
 
