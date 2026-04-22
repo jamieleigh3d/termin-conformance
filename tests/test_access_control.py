@@ -244,15 +244,34 @@ class TestAccessControlWarehouse:
             else:
                 r = warehouse.post(path, json={})
         elif verb == "DELETE":
-            # Create first, then try delete
+            # Create first, then try delete. The session-scoped
+            # warehouse fixture means other tests' data can leave
+            # referring records in the database; harden the DELETE
+            # branch by clearing any inbound FKs against the newly
+            # created product BEFORE the authoritative delete attempt.
+            # (Issue #1: FK enforcement correctly returns 409 when a
+            # referenced record exists; this test is about scope
+            # gating, not referential integrity, so we isolate the
+            # scope concern by removing references first.)
             warehouse.set_role("warehouse manager")
             sku = _uid()
             pr = warehouse.post(f"/api/v1/{content}", json={
                 "sku": sku, "name": "T", "category": "raw material"
             } if content == "products" else {"product": 1, "warehouse": "W1"})
             if pr.status_code == 201:
-                # v0.7 auto-CRUD routes use id as lookup column
                 lookup = pr.json()["id"]
+                # Clean up referring stock_levels for products. (Other
+                # content types would need their own reverse-FK map;
+                # only products has a declared inbound reference in the
+                # warehouse fixture.)
+                if content == "products":
+                    warehouse.set_role("warehouse manager")
+                    rs = warehouse.get(
+                        f"/api/v1/stock_levels?product={lookup}")
+                    if rs.status_code == 200:
+                        for sl in rs.json():
+                            warehouse.delete(
+                                f"/api/v1/stock_levels/{sl['id']}")
                 warehouse.set_role(role)
                 r = warehouse.delete(f"{path}/{lookup}")
             else:

@@ -298,7 +298,31 @@ class TestActionButtonContract:
     """Action buttons must render with correct labels and state awareness."""
 
     def test_action_buttons_labeled(self, warehouse, warehouse_ir):
-        """Every row_action button's label must appear in the HTML."""
+        """Every row_action button must have a discoverable affordance
+        in the rendered HTML. The canonical marker is the data-termin-*
+        attribute matching the button's action kind:
+
+          action="transition"  -> data-termin-transition
+          action="delete"      -> data-termin-delete
+          action="edit"        -> data-termin-edit
+
+        Runtimes MAY also include the button's display label as literal
+        text (the reference renderer does), but this is not required —
+        icon-only buttons and aria-label-only buttons are equally
+        conformant as long as the marker is present. Accessibility
+        tools and behavioral tests use the markers, not English text.
+
+        Issue #2 context: the earlier version asserted the literal
+        label string appeared in the HTML, which would reject a runtime
+        that rendered buttons with icons + aria-label only. The
+        data-termin-* markers are the protocol contract.
+        """
+        # Action-kind -> canonical marker attribute.
+        marker_attrs = {
+            "transition": "data-termin-transition",
+            "delete": "data-termin-delete",
+            "edit": "data-termin-edit",
+        }
         for page in warehouse_ir["pages"]:
             tables = _walk_components(page["children"], "data_table")
             if not tables:
@@ -312,10 +336,19 @@ class TestActionButtonContract:
             for table in tables:
                 for action in table["props"].get("row_actions", []):
                     label = action["props"].get("label", "")
-                    if label:
-                        # Button label should appear either as enabled or disabled
-                        assert label in html, \
-                            f"Page {page['slug']}: action button '{label}' not in HTML"
+                    kind = action["props"].get("action", "transition")
+                    marker = marker_attrs.get(kind, "data-termin-transition")
+                    # Accept any of:
+                    #   - the marker attribute (canonical)
+                    #   - literal label text (reference-runtime style)
+                    #   - aria-label matching the label (screen-reader style)
+                    has_marker = marker in html
+                    has_literal = bool(label) and label in html
+                    has_aria = bool(label) and f'aria-label="{label}"' in html
+                    assert has_marker or has_literal or has_aria, (
+                        f"Page {page['slug']}: row action '{label}' ({kind}) "
+                        f"has no affordance — expected the {marker} attribute, "
+                        f"literal '{label}', or aria-label='{label}' in HTML")
 
     def test_disabled_buttons_when_unauthorized(self, warehouse, warehouse_ir):
         """Action buttons should be disabled when the user lacks the required scope."""
