@@ -140,6 +140,8 @@ class ReferenceAdapter(RuntimeAdapter):
         # Patch AIProvider
         original_startup = AIProvider.startup
         original_agent_loop = AIProvider.agent_loop
+        original_agent_loop_streaming = getattr(
+            AIProvider, "agent_loop_streaming", None)
 
         def mock_startup(self_ai):
             self_ai._client = True
@@ -150,8 +152,22 @@ class ReferenceAdapter(RuntimeAdapter):
                 tool_results.append({"tool": tool_name, "input": tool_input, "result": result})
             return {"thinking": "mock agent completed", "tool_results": tool_results}
 
+        async def mock_agent_loop_streaming(self_ai, system_prompt, user_message,
+                                             tools, execute_tool,
+                                             on_event=None, max_turns=20):
+            """Streaming-path mock — executes the same scripted tool
+            calls as mock_agent_loop. Skips emitting field_delta events
+            since the mock has no text to stream; fires a single done
+            event so clients see a terminal signal."""
+            result = await mock_agent_loop(
+                self_ai, system_prompt, user_message, tools, execute_tool)
+            if on_event:
+                await on_event({"type": "done", "output": result})
+            return result
+
         AIProvider.startup = mock_startup
         AIProvider.agent_loop = mock_agent_loop
+        AIProvider.agent_loop_streaming = mock_agent_loop_streaming
 
         db_file = tempfile.mktemp(suffix=".db")
         app = create_termin_app(ir_json, db_path=db_file, seed_data=seed_data,
@@ -167,6 +183,10 @@ class ReferenceAdapter(RuntimeAdapter):
                 client.__exit__(None, None, None),
                 setattr(AIProvider, 'startup', original_startup),
                 setattr(AIProvider, 'agent_loop', original_agent_loop),
+                (setattr(AIProvider, 'agent_loop_streaming',
+                         original_agent_loop_streaming)
+                 if original_agent_loop_streaming is not None
+                 else delattr(AIProvider, 'agent_loop_streaming')),
             ),
         )
         self._sessions[id(info)] = session

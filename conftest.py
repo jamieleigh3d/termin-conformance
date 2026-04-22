@@ -26,11 +26,18 @@ def _get_adapter():
     if adapter_name == "reference":
         from adapter_reference import ReferenceAdapter
         return ReferenceAdapter()
+    elif adapter_name == "served-reference":
+        # Like "reference" but serves each app on a real localhost port
+        # so Playwright / visual-regression tests can navigate to it.
+        from adapter_served_reference import ServedReferenceAdapter
+        return ServedReferenceAdapter()
     elif adapter_name == "template":
         from adapter_template import MyRuntimeAdapter
         return MyRuntimeAdapter()
     else:
-        raise ValueError(f"Unknown adapter: {adapter_name}. Set TERMIN_ADAPTER=reference or implement your own.")
+        raise ValueError(
+            f"Unknown adapter: {adapter_name}. "
+            "Set TERMIN_ADAPTER=reference | served-reference | template.")
 
 
 _adapter = _get_adapter()
@@ -199,3 +206,63 @@ def hello_user_ir():
 def compute_demo_ir():
     app_info, _ = _get_app_session("compute_demo")
     return app_info.ir
+
+
+# ── Playwright browser fixtures (opt-in) ────────────────────────────
+#
+# Browser-driven conformance tests use these fixtures. They skip
+# gracefully when:
+#   - The Playwright package is not installed, OR
+#   - The adapter's session does not expose a real HTTP URL (the
+#     in-process reference adapter returns base_url="http://testserver"
+#     which is not reachable by a browser).
+#
+# To run browser tests:
+#   pip install playwright
+#   python -m playwright install chromium
+#   TERMIN_ADAPTER=served-reference python -m pytest tests/test_*browser*.py -v
+
+def _playwright_available():
+    try:
+        import playwright  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+@pytest.fixture(scope="session")
+def _chromium():
+    """Launch a headless Chromium browser once per session."""
+    if not _playwright_available():
+        pytest.skip("playwright not installed")
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        yield browser
+        browser.close()
+
+
+@pytest.fixture
+def browser_context(_chromium):
+    """A fresh Chromium context per test — no state bleed between tests."""
+    context = _chromium.new_context()
+    yield context
+    context.close()
+
+
+@pytest.fixture
+def browser_page(browser_context):
+    """A fresh page in a fresh context per test."""
+    page = browser_context.new_page()
+    yield page
+    page.close()
+
+
+def _require_served_url(session):
+    """Skip the test if this adapter's base_url isn't a real HTTP URL.
+    A browser needs to navigate to it. Used by browser-test fixtures."""
+    base = getattr(session, "base_url", "")
+    if not base or base.startswith("http://testserver"):
+        pytest.skip(
+            "browser tests require TERMIN_ADAPTER=served-reference "
+            "(or another adapter that serves on a real port)")
