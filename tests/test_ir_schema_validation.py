@@ -271,8 +271,8 @@ class TestIRStructuralIntegrity:
         """Every IR must declare ir_version."""
         ir_data = _extract_ir_from_pkg(ir_file)
         assert "ir_version" in ir_data, f"{ir_file.stem}: missing ir_version"
-        assert ir_data["ir_version"] == "0.8.0", (
-            f"{ir_file.stem}: expected ir_version '0.8.0', got '{ir_data['ir_version']}'"
+        assert ir_data["ir_version"] == "0.9.0", (
+            f"{ir_file.stem}: expected ir_version '0.9.0', got '{ir_data['ir_version']}'"
         )
 
     @pytest.mark.parametrize(

@@ -478,7 +478,7 @@ class TestIRTopLevelStructure:
     ])
     def test_ir_version(self, ir_fixture, request):
         ir = request.getfixturevalue(ir_fixture)
-        assert ir["ir_version"] == "0.8.0"
+        assert ir["ir_version"] == "0.9.0"
 
     @pytest.mark.parametrize("ir_fixture", [
         "agent_simple_ir", "agent_chatbot_ir", "channel_simple_ir",
