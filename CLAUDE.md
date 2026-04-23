@@ -145,7 +145,7 @@ hole to fill, not a feature.
 
 ## Fixtures come from the compiler — do not hand-edit
 
-`fixtures/*.termin.pkg`, `fixtures/ir/*.json`, and `fixtures/*.deploy.json`
+`fixtures/*.termin.pkg` and `fixtures/*.deploy.json`
 are **generated artifacts**. They are
 produced by `util/release.py` in the compiler repo and copied here
 automatically. If you edit them by hand:

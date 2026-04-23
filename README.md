@@ -22,9 +22,7 @@ termin-conformance/
 │   ├── channel_simple.termin.pkg       # Channel loopback demo
 │   ├── channel_demo.termin.pkg         # All 6 channel patterns
 │   ├── security_agent.termin.pkg       # Action channels + agent computes
-│   ├── *.deploy.json                   # Deploy configs for channel/agent apps
-│   └── ir/                             # Raw IR JSON (for runtimes without .pkg support)
-│       └── *.json
+│   └── *.deploy.json                   # Deploy configs for channel/agent apps
 ├── tests/                              # Conformance tests (TODO: migrate here)
 ├── adapter.py                          # Runtime adapter interface
 ├── adapter_reference.py                # Reference runtime adapter (in-process)
