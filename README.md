@@ -23,7 +23,6 @@ termin-conformance/
 │   ├── channel_demo.termin.pkg         # All 6 channel patterns
 │   ├── security_agent.termin.pkg       # Action channels + agent computes
 │   ├── *.deploy.json                   # Deploy configs for channel/agent apps
-│   ├── termin-ir-schema.json           # IR JSON Schema for validation
 │   └── ir/                             # Raw IR JSON (for runtimes without .pkg support)
 │       └── *.json
 ├── tests/                              # Conformance tests (TODO: migrate here)

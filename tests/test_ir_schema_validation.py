@@ -1,7 +1,7 @@
 """IR JSON Schema Validation Tests.
 
 Validates that every IR fixture in .termin.pkg packages conforms to the
-Termin IR JSON Schema (fixtures/termin-ir-schema.json).
+Termin IR JSON Schema (specs/termin-ir-schema.json).
 
 These tests catch drift between the compiler's actual output and the
 published schema contract. If a field is in the IR but not the schema
@@ -19,7 +19,8 @@ from pathlib import Path
 from jsonschema import validate, ValidationError, Draft202012Validator
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
-SCHEMA_PATH = FIXTURES_DIR / "termin-ir-schema.json"
+SPECS_DIR = Path(__file__).parent.parent / "specs"
+SCHEMA_PATH = SPECS_DIR / "termin-ir-schema.json"
 
 
 # ── Load schema once ──
