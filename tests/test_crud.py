@@ -88,7 +88,7 @@ class TestCRUDCreate:
         r = warehouse.post("/api/v1/products", json={
             "sku": _uid(), "name": "Status Test", "category": "raw material",
         })
-        assert r.json()["status"] == "draft"
+        assert r.json()["product_lifecycle"] == "draft"
 
 
 class TestCRUDGetOne:

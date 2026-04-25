@@ -248,8 +248,10 @@ class TestTransitionFeedback:
 
     def test_warehouse_activate_has_feedback(self, warehouse_ir):
         """Warehouse draft→active should have success toast + error banner."""
+        # v0.9: machine_name is the snake_case field name (= SQL column),
+        # not the legacy quoted display name from `State for X called "Y":`.
         sm = [s for s in warehouse_ir["state_machines"]
-              if s["machine_name"] == "product lifecycle"][0]
+              if s["machine_name"] == "product_lifecycle"][0]
         t = [t for t in sm["transitions"]
              if t["from_state"] == "draft" and t["to_state"] == "active"][0]
         assert "feedback" in t
@@ -264,7 +266,7 @@ class TestTransitionFeedback:
     def test_helpdesk_resolve_has_banner_with_dismiss(self, helpdesk_ir):
         """Helpdesk in progress→resolved should have banner with 10s dismiss."""
         sm = [s for s in helpdesk_ir["state_machines"]
-              if s["machine_name"] == "ticket lifecycle"][0]
+              if s["machine_name"] == "ticket_lifecycle"][0]
         t = [t for t in sm["transitions"]
              if t["from_state"] == "in progress" and t["to_state"] == "resolved"][0]
         assert len(t["feedback"]) == 1

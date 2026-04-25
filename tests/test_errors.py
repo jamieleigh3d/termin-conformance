@@ -47,7 +47,7 @@ class TestErrorHandling:
 
     def test_transition_on_nonexistent_record(self, warehouse):
         warehouse.set_role("warehouse manager")
-        r = warehouse.post("/_transition/products/999999/active")
+        r = warehouse.post("/_transition/products/product_lifecycle/999999/active")
         assert r.status_code == 404
 
     def test_duplicate_unique_returns_error_not_crash(self, warehouse):

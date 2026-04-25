@@ -163,12 +163,12 @@ class TestActionButtonRendering:
 
     def test_active_product_disables_activate(self, warehouse):
         pid = self._create_product(warehouse)
-        warehouse.post(f"/_transition/products/{pid}/active")
+        warehouse.post(f"/_transition/products/product_lifecycle/{pid}/active")
         warehouse.set_role("warehouse manager")
         r = warehouse.get("/inventory_dashboard")
         # Active product should not have an enabled Activate transition.
         # A runtime may disable the button, hide it, or omit the form entirely — all are valid.
-        assert f"/_transition/products/{pid}/active" not in r.text
+        assert f"/_transition/products/product_lifecycle/{pid}/active" not in r.text
 
 
 class TestFilterRendering:

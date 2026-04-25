@@ -144,6 +144,16 @@ def security_agent():
     if app_info.cleanup:
         app_info.cleanup()
 
+@pytest.fixture(scope="session")
+def approval_workflow():
+    """v0.9 fixture — exercises multi-state-machine per content.
+    Two state machines on `documents`: lifecycle + approval_status.
+    """
+    app_info, session = _get_app_session("approval_workflow")
+    yield session
+    if app_info.cleanup:
+        app_info.cleanup()
+
 
 # ── IR fixtures for introspection ──
 
@@ -205,6 +215,11 @@ def hello_user_ir():
 @pytest.fixture(scope="session")
 def compute_demo_ir():
     app_info, _ = _get_app_session("compute_demo")
+    return app_info.ir
+
+@pytest.fixture(scope="session")
+def approval_workflow_ir():
+    app_info, _ = _get_app_session("approval_workflow")
     return app_info.ir
 
 

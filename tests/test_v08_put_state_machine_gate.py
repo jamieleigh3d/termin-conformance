@@ -19,16 +19,19 @@ Every conforming runtime must:
   4. Preserve atomicity: if the transition is rejected, companion
      field updates in the same PUT body must NOT land.
 
-Current runtime limit (v0.9 item): one state machine per content,
-implicit column "status". Multi-state-machine support is a v0.9
-backlog item.
+v0.9 update: the state column is now named after the state-typed field
+on the Content (e.g. `product_lifecycle` rather than the legacy
+implicit `status`). A Content may declare multiple state-typed fields
+— each generates its own column and its own transition table; the
+PUT-route gate must inspect every state-typed column in the body and
+route each through its respective state machine independently.
 
 Uses warehouse, where:
   "warehouse clerk":   inventory.read + inventory.write
   "warehouse manager": read + write + admin
   "executive":         inventory.read (no write, no admin)
 
-State machine transitions:
+State machine `product_lifecycle` transitions:
   draft    -> active         requires inventory.write
   active   -> discontinued   requires inventory.admin
   discontinued -> active     requires inventory.admin
@@ -36,6 +39,14 @@ State machine transitions:
 
 import uuid
 import pytest
+
+
+# v0.9: state column = snake_case field name on the Content. Warehouse
+# declares `Each product has a lifecycle which is state:`, so the column
+# is `product_lifecycle` (lowering snake-cases the machine_name from the
+# field declaration). Capturing this as a constant keeps the test
+# resistant to a future warehouse rename.
+SM_COL = "product_lifecycle"
 
 
 def _sku(prefix="PUT"):
@@ -62,18 +73,18 @@ class TestUndeclaredTransitionBlocked:
         of caller scopes."""
         warehouse.set_role("warehouse manager")
         r = warehouse.put(f"/api/v1/products/{draft_product}",
-                          json={"status": "discontinued"})
+                          json={SM_COL: "discontinued"})
         assert r.status_code == 409, r.text
         r2 = warehouse.get(f"/api/v1/products/{draft_product}")
-        assert r2.json()["status"] == "draft"
+        assert r2.json()[SM_COL] == "draft"
 
     def test_put_with_unknown_state_value_rejected(self, warehouse, draft_product):
         warehouse.set_role("warehouse manager")
         r = warehouse.put(f"/api/v1/products/{draft_product}",
-                          json={"status": "nonexistent_state"})
+                          json={SM_COL: "nonexistent_state"})
         assert r.status_code == 409
         r2 = warehouse.get(f"/api/v1/products/{draft_product}")
-        assert r2.json()["status"] == "draft"
+        assert r2.json()[SM_COL] == "draft"
 
 
 class TestTransitionScopeEnforced:
@@ -82,18 +93,19 @@ class TestTransitionScopeEnforced:
         with only inventory.write must get 403."""
         warehouse.set_role("warehouse manager")
         # Promote to active first.
-        r_activate = warehouse.post(f"/_transition/products/{draft_product}/active")
+        r_activate = warehouse.post(
+            f"/_transition/products/{SM_COL}/{draft_product}/active")
         assert r_activate.status_code == 200
 
         warehouse.set_role("warehouse clerk")
         r = warehouse.put(f"/api/v1/products/{draft_product}",
-                          json={"status": "discontinued"})
+                          json={SM_COL: "discontinued"})
         assert r.status_code == 403, r.text
 
         # State unchanged.
         warehouse.set_role("warehouse manager")
         r2 = warehouse.get(f"/api/v1/products/{draft_product}")
-        assert r2.json()["status"] == "active"
+        assert r2.json()[SM_COL] == "active"
 
 
 class TestValidTransitionStillSucceeds:
@@ -101,10 +113,10 @@ class TestValidTransitionStillSucceeds:
         """draft -> active requires inventory.write. Clerk has it."""
         warehouse.set_role("warehouse clerk")
         r = warehouse.put(f"/api/v1/products/{draft_product}",
-                          json={"status": "active"})
+                          json={SM_COL: "active"})
         assert r.status_code == 200, r.text
         r2 = warehouse.get(f"/api/v1/products/{draft_product}")
-        assert r2.json()["status"] == "active"
+        assert r2.json()[SM_COL] == "active"
 
 
 class TestAtomicityOnRejection:
@@ -113,12 +125,12 @@ class TestAtomicityOnRejection:
         """If a PUT includes both a forbidden transition and a
         description update, the description must NOT persist."""
         warehouse.set_role("warehouse manager")
-        warehouse.post(f"/_transition/products/{draft_product}/active")
+        warehouse.post(f"/_transition/products/{SM_COL}/{draft_product}/active")
 
         warehouse.set_role("warehouse clerk")
         r = warehouse.put(f"/api/v1/products/{draft_product}", json={
             "description": "sneaked through",
-            "status": "discontinued",
+            SM_COL: "discontinued",
         })
         assert r.status_code == 403
 
@@ -131,13 +143,13 @@ class TestAtomicityOnRejection:
         warehouse.set_role("warehouse clerk")
         r = warehouse.put(f"/api/v1/products/{draft_product}", json={
             "description": "updated at activation",
-            "status": "active",
+            SM_COL: "active",
         })
         assert r.status_code == 200, r.text
         warehouse.set_role("warehouse manager")
         r2 = warehouse.get(f"/api/v1/products/{draft_product}")
         body = r2.json()
-        assert body["status"] == "active"
+        assert body[SM_COL] == "active"
         assert body["description"] == "updated at activation"
 
 
@@ -151,19 +163,19 @@ class TestBackwardCompatRegression:
         warehouse.set_role("warehouse manager")
         r2 = warehouse.get(f"/api/v1/products/{draft_product}")
         assert r2.json().get("description") == "regular update"
-        assert r2.json().get("status") == "draft"
+        assert r2.json().get(SM_COL) == "draft"
 
     def test_put_with_same_state_is_noop_on_state(self, warehouse, draft_product):
-        """PUT {status: <current>} must not 409 for 'X -> X not declared' —
-        the state didn't change. The companion field update must
-        still apply."""
+        """PUT with the current state must not 409 for 'X -> X not
+        declared' — the state didn't change. The companion field update
+        must still apply."""
         warehouse.set_role("warehouse clerk")
         r = warehouse.put(f"/api/v1/products/{draft_product}", json={
-            "status": "draft",
+            SM_COL: "draft",
             "description": "same-state PUT",
         })
         assert r.status_code == 200, r.text
         warehouse.set_role("warehouse manager")
         r2 = warehouse.get(f"/api/v1/products/{draft_product}")
-        assert r2.json().get("status") == "draft"
+        assert r2.json().get(SM_COL) == "draft"
         assert r2.json().get("description") == "same-state PUT"

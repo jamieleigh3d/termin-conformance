@@ -291,7 +291,7 @@ class TestSecurityAgentBootstrap:
             "affected_resource": "arn:aws:secretsmanager::secret/test",
         })
         fid = r.json()["id"]
-        r2 = security_agent.post(f"/api/v1/findings/{fid}/_transition/analyzing")
+        r2 = security_agent.post(f"/api/v1/findings/{fid}/_transition/remediation/analyzing")
         assert r2.status_code == 200
 
     def test_create_scan_run(self, security_agent):

@@ -8,6 +8,11 @@ These tests are designed to be portable: they test observable behavior
 through the HTTP API and rendered HTML, not internal implementation
 details. Any runtime that passes this suite is behaviorally conformant.
 
+v0.9 update: state columns are named after the state-typed field on the
+Content, not the legacy implicit `status`. Warehouse `products` now has
+`product_lifecycle`; helpdesk `tickets` has `ticket_lifecycle`. The
+transition route is `/_transition/{content}/{machine_name}/{id}/{state}`.
+
 Test categories:
   1. Identity & Access Control (40+ tests)
   2. State Machine Enforcement (30+ tests)
@@ -33,6 +38,12 @@ def _uid():
     return uuid.uuid4().hex[:8]
 
 
+# v0.9: state column names are the snake_case field names declared on the
+# Content, not the legacy implicit `status`.
+WAREHOUSE_SM = "product_lifecycle"
+HELPDESK_SM = "ticket_lifecycle"
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # 1. IDENTITY & ACCESS CONTROL
 # ═══════════════════════════════════════════════════════════════════════
@@ -47,7 +58,7 @@ class TestStateMachineInitialState:
             "sku": _uid(), "name": "Init Test", "category": "raw material",
         })
         assert r.status_code == 201
-        assert r.json()["status"] == "draft"
+        assert r.json()[WAREHOUSE_SM] == "draft"
 
     def test_ticket_starts_as_open(self, helpdesk):
         helpdesk.set_role("customer")
@@ -55,18 +66,24 @@ class TestStateMachineInitialState:
             "title": f"Init {_uid()}", "description": "test",
         })
         assert r.status_code == 201
-        assert r.json()["status"] == "open"
+        assert r.json()[HELPDESK_SM] == "open"
 
     def test_cannot_set_initial_status_directly(self, warehouse):
-        """Clients should not be able to override the initial state."""
+        """Clients should not be able to override the initial state.
+
+        v0.9 contract: the SQL DEFAULT on the state column is the initial
+        state. A POST body carrying the state column with a different
+        value must not take effect — the runtime must either strip the
+        field on create or reject the request. Either is conformant.
+        """
         warehouse.set_role("warehouse manager")
         r = warehouse.post("/api/v1/products", json={
             "sku": _uid(), "name": "Override Test",
-            "category": "raw material", "status": "active",
+            "category": "raw material", WAREHOUSE_SM: "active",
         })
         assert r.status_code == 201
-        # Status should be "draft" regardless of what client sent
-        assert r.json()["status"] == "draft"
+        # State should be "draft" regardless of what client sent
+        assert r.json()[WAREHOUSE_SM] == "draft"
 
 
 class TestStateMachineValidTransitions:
@@ -82,31 +99,31 @@ class TestStateMachineValidTransitions:
 
     def test_valid_transition_succeeds(self, warehouse):
         pid, _ = self._create_product(warehouse)
-        r = warehouse.post(f"/_transition/products/{pid}/active")
+        r = warehouse.post(f"/_transition/products/{WAREHOUSE_SM}/{pid}/active")
         assert r.status_code in (200, 303)
 
     def test_invalid_transition_rejected_409(self, warehouse):
         """Transition not in the state machine -> 409."""
         pid, _ = self._create_product(warehouse)
         # draft -> discontinued is not declared
-        r = warehouse.post(f"/_transition/products/{pid}/discontinued")
+        r = warehouse.post(f"/_transition/products/{WAREHOUSE_SM}/{pid}/discontinued")
         assert r.status_code == 409
 
     def test_transition_from_wrong_state(self, warehouse):
         """Can't transition active -> draft (no such transition)."""
         pid, _ = self._create_product(warehouse)
-        warehouse.post(f"/_transition/products/{pid}/active")  # draft -> active
-        r = warehouse.post(f"/_transition/products/{pid}/draft")  # active -> draft: invalid
+        warehouse.post(f"/_transition/products/{WAREHOUSE_SM}/{pid}/active")  # draft -> active
+        r = warehouse.post(f"/_transition/products/{WAREHOUSE_SM}/{pid}/draft")  # active -> draft: invalid
         assert r.status_code == 409
 
     def test_full_lifecycle(self, warehouse):
         """draft -> active -> discontinued -> active (full cycle)."""
         pid, _ = self._create_product(warehouse)
-        r1 = warehouse.post(f"/_transition/products/{pid}/active")
+        r1 = warehouse.post(f"/_transition/products/{WAREHOUSE_SM}/{pid}/active")
         assert r1.status_code in (200, 303)
-        r2 = warehouse.post(f"/_transition/products/{pid}/discontinued")
+        r2 = warehouse.post(f"/_transition/products/{WAREHOUSE_SM}/{pid}/discontinued")
         assert r2.status_code in (200, 303)
-        r3 = warehouse.post(f"/_transition/products/{pid}/active")
+        r3 = warehouse.post(f"/_transition/products/{WAREHOUSE_SM}/{pid}/active")
         assert r3.status_code in (200, 303)
 
 
@@ -123,24 +140,24 @@ class TestStateMachineScopeEnforcement:
     def test_transition_with_sufficient_scope(self, warehouse):
         pid = self._create_product(warehouse)
         warehouse.set_role("warehouse clerk")  # has write inventory
-        r = warehouse.post(f"/_transition/products/{pid}/active")
+        r = warehouse.post(f"/_transition/products/{WAREHOUSE_SM}/{pid}/active")
         assert r.status_code in (200, 303)
 
     def test_transition_without_scope_is_403(self, warehouse):
         pid = self._create_product(warehouse)
         warehouse.set_role("executive")  # only read inventory
-        r = warehouse.post(f"/_transition/products/{pid}/active")
+        r = warehouse.post(f"/_transition/products/{WAREHOUSE_SM}/{pid}/active")
         assert r.status_code == 403
 
     def test_admin_transition_requires_admin_scope(self, warehouse):
         """active -> discontinued requires admin inventory."""
         pid = self._create_product(warehouse)
-        warehouse.post(f"/_transition/products/{pid}/active")  # clerk can do this
+        warehouse.post(f"/_transition/products/{WAREHOUSE_SM}/{pid}/active")  # clerk can do this
         warehouse.set_role("warehouse clerk")
-        r = warehouse.post(f"/_transition/products/{pid}/discontinued")
+        r = warehouse.post(f"/_transition/products/{WAREHOUSE_SM}/{pid}/discontinued")
         assert r.status_code == 403  # clerk lacks admin inventory
         warehouse.set_role("warehouse manager")
-        r2 = warehouse.post(f"/_transition/products/{pid}/discontinued")
+        r2 = warehouse.post(f"/_transition/products/{WAREHOUSE_SM}/{pid}/discontinued")
         assert r2.status_code in (200, 303)  # manager has admin inventory
 
     @pytest.mark.parametrize("role,from_state,to_state,expected", [
@@ -158,12 +175,12 @@ class TestStateMachineScopeEnforcement:
         pid = self._create_product(warehouse)
         # Walk to from_state
         if from_state == "active":
-            warehouse.post(f"/_transition/products/{pid}/active")
+            warehouse.post(f"/_transition/products/{WAREHOUSE_SM}/{pid}/active")
         elif from_state == "discontinued":
-            warehouse.post(f"/_transition/products/{pid}/active")
-            warehouse.post(f"/_transition/products/{pid}/discontinued")
+            warehouse.post(f"/_transition/products/{WAREHOUSE_SM}/{pid}/active")
+            warehouse.post(f"/_transition/products/{WAREHOUSE_SM}/{pid}/discontinued")
         warehouse.set_role(role)
-        r = warehouse.post(f"/_transition/products/{pid}/{to_state}")
+        r = warehouse.post(f"/_transition/products/{WAREHOUSE_SM}/{pid}/{to_state}")
         actual = r.status_code
         # Accept both 200 and 303 (redirect) as success
         if expected == 200:
@@ -185,36 +202,36 @@ class TestStateMachineHelpdesk:
     def test_multi_word_state_transition(self, helpdesk):
         """open -> in progress (multi-word target state)."""
         tid = self._create_ticket(helpdesk)
-        r = helpdesk.post(f"/_transition/tickets/{tid}/in progress")
+        r = helpdesk.post(f"/_transition/tickets/{HELPDESK_SM}/{tid}/in progress")
         assert r.status_code in (200, 303)
 
     def test_full_ticket_lifecycle(self, helpdesk):
         """open -> in progress -> resolved -> closed."""
         tid = self._create_ticket(helpdesk)
         helpdesk.set_role("support agent")
-        helpdesk.post(f"/_transition/tickets/{tid}/in progress")
-        helpdesk.post(f"/_transition/tickets/{tid}/resolved")
+        helpdesk.post(f"/_transition/tickets/{HELPDESK_SM}/{tid}/in progress")
+        helpdesk.post(f"/_transition/tickets/{HELPDESK_SM}/{tid}/resolved")
         helpdesk.set_role("support manager")
-        r = helpdesk.post(f"/_transition/tickets/{tid}/closed")
+        r = helpdesk.post(f"/_transition/tickets/{HELPDESK_SM}/{tid}/closed")
         assert r.status_code in (200, 303)
 
     def test_customer_can_reopen(self, helpdesk):
         """resolved -> in progress requires create tickets (customer has this)."""
         tid = self._create_ticket(helpdesk)
         helpdesk.set_role("support agent")
-        helpdesk.post(f"/_transition/tickets/{tid}/in progress")
-        helpdesk.post(f"/_transition/tickets/{tid}/resolved")
+        helpdesk.post(f"/_transition/tickets/{HELPDESK_SM}/{tid}/in progress")
+        helpdesk.post(f"/_transition/tickets/{HELPDESK_SM}/{tid}/resolved")
         helpdesk.set_role("customer")
-        r = helpdesk.post(f"/_transition/tickets/{tid}/in progress")
+        r = helpdesk.post(f"/_transition/tickets/{HELPDESK_SM}/{tid}/in progress")
         assert r.status_code in (200, 303)
 
     def test_customer_cannot_resolve(self, helpdesk):
         """in progress -> resolved requires manage tickets (customer lacks it)."""
         tid = self._create_ticket(helpdesk)
         helpdesk.set_role("support agent")
-        helpdesk.post(f"/_transition/tickets/{tid}/in progress")
+        helpdesk.post(f"/_transition/tickets/{HELPDESK_SM}/{tid}/in progress")
         helpdesk.set_role("customer")
-        r = helpdesk.post(f"/_transition/tickets/{tid}/resolved")
+        r = helpdesk.post(f"/_transition/tickets/{HELPDESK_SM}/{tid}/resolved")
         assert r.status_code == 403
 
 
@@ -242,7 +259,7 @@ class TestHelpdeskTransitionMatrix:
             "closed": ["in progress", "resolved", "closed"],
         }
         for state in path_to.get(target_state, []):
-            helpdesk.post(f"/_transition/tickets/{tid}/{state}")
+            helpdesk.post(f"/_transition/tickets/{HELPDESK_SM}/{tid}/{state}")
         return tid
 
     @pytest.mark.parametrize("from_state,to_state,role,expected", [
@@ -273,7 +290,7 @@ class TestHelpdeskTransitionMatrix:
     def test_helpdesk_transition_matrix(self, helpdesk, from_state, to_state, role, expected):
         tid = self._create_ticket_in_state(helpdesk, from_state)
         helpdesk.set_role(role)
-        r = helpdesk.post(f"/_transition/tickets/{tid}/{to_state}")
+        r = helpdesk.post(f"/_transition/tickets/{HELPDESK_SM}/{tid}/{to_state}")
         actual = r.status_code
         if expected == 200:
             assert actual in (200, 303), \
@@ -284,7 +301,7 @@ class TestHelpdeskTransitionMatrix:
 
 
 class TestStateMachineStatusPersistence:
-    """Status changes persist across requests."""
+    """State changes persist across requests."""
 
     def test_status_persists_after_transition(self, warehouse):
         warehouse.set_role("warehouse manager")
@@ -293,12 +310,12 @@ class TestStateMachineStatusPersistence:
             "sku": sku, "name": "Persist", "category": "raw material",
         })
         pid = r.json()["id"]
-        warehouse.post(f"/_transition/products/{pid}/active")
+        warehouse.post(f"/_transition/products/{WAREHOUSE_SM}/{pid}/active")
         # List all and find our product by SKU
         products = warehouse.get("/api/v1/products").json()
         match = [p for p in products if p["sku"] == sku]
         assert len(match) == 1
-        assert match[0]["status"] == "active"
+        assert match[0][WAREHOUSE_SM] == "active"
 
     def test_double_transition(self, warehouse):
         """Two consecutive valid transitions both persist."""
@@ -308,14 +325,14 @@ class TestStateMachineStatusPersistence:
             "sku": sku, "name": "Double", "category": "raw material",
         })
         pid = r.json()["id"]
-        warehouse.post(f"/_transition/products/{pid}/active")
-        warehouse.post(f"/_transition/products/{pid}/discontinued")
+        warehouse.post(f"/_transition/products/{WAREHOUSE_SM}/{pid}/active")
+        warehouse.post(f"/_transition/products/{WAREHOUSE_SM}/{pid}/discontinued")
         products = warehouse.get("/api/v1/products").json()
         match = [p for p in products if p["sku"] == sku]
-        assert match[0]["status"] == "discontinued"
+        assert match[0][WAREHOUSE_SM] == "discontinued"
 
     def test_failed_transition_doesnt_change_status(self, warehouse):
-        """A rejected transition leaves the status unchanged."""
+        """A rejected transition leaves the state unchanged."""
         warehouse.set_role("warehouse manager")
         sku = _uid()
         r = warehouse.post("/api/v1/products", json={
@@ -323,7 +340,7 @@ class TestStateMachineStatusPersistence:
         })
         pid = r.json()["id"]
         # Try invalid transition (draft -> discontinued)
-        warehouse.post(f"/_transition/products/{pid}/discontinued")
+        warehouse.post(f"/_transition/products/{WAREHOUSE_SM}/{pid}/discontinued")
         products = warehouse.get("/api/v1/products").json()
         match = [p for p in products if p["sku"] == sku]
-        assert match[0]["status"] == "draft"  # unchanged
+        assert match[0][WAREHOUSE_SM] == "draft"  # unchanged

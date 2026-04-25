@@ -325,25 +325,25 @@ class TestSalaryReviewStateMachine:
         })
         assert r.status_code == 201
         sr = r.json()
-        assert sr["status"] == "pending"
+        assert sr["review_lifecycle"] == "pending"
         sr_id = sr["id"]
 
         # Transition: pending → approved
-        r2 = hrportal.post(f"/_transition/salary_reviews/{sr_id}/approved")
+        r2 = hrportal.post(f"/_transition/salary_reviews/review_lifecycle/{sr_id}/approved")
         assert r2.status_code in (200, 303)
 
         # Verify
         reviews = hrportal.get("/api/v1/salary_reviews").json()
         match = [s for s in reviews if s["id"] == sr_id]
-        assert match[0]["status"] == "approved"
+        assert match[0]["review_lifecycle"] == "approved"
 
         # Transition: approved → applied
-        r3 = hrportal.post(f"/_transition/salary_reviews/{sr_id}/applied")
+        r3 = hrportal.post(f"/_transition/salary_reviews/review_lifecycle/{sr_id}/applied")
         assert r3.status_code in (200, 303)
 
         reviews = hrportal.get("/api/v1/salary_reviews").json()
         match = [s for s in reviews if s["id"] == sr_id]
-        assert match[0]["status"] == "applied"
+        assert match[0]["review_lifecycle"] == "applied"
 
 
 # ═══════════════════════════════════════════════════════════════════════

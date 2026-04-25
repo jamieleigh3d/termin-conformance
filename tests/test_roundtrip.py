@@ -127,7 +127,7 @@ class TestFormRoundTrip:
         product = match[0]
         assert product["name"] == "Round Trip Product"
         assert product["category"] == "finished good"
-        assert product["status"] == "draft"  # initial state
+        assert product["product_lifecycle"] == "draft"  # initial state
 
     def test_default_expr_populated_via_form(self, helpdesk):
         """default_expr fields should be populated when form doesn't include them."""
@@ -166,16 +166,16 @@ class TestTransitionRoundTrip:
         })
         assert r.status_code == 201
         pid = r.json()["id"]
-        assert r.json()["status"] == "draft"
+        assert r.json()["product_lifecycle"] == "draft"
 
         # 2. Submit the transition (simulating button click)
-        r2 = warehouse.post(f"/_transition/products/{pid}/active")
+        r2 = warehouse.post(f"/_transition/products/product_lifecycle/{pid}/active")
         assert r2.status_code in (200, 303)
 
         # 3. Verify via API
         products = warehouse.get("/api/v1/products").json()
         match = [p for p in products if p["sku"] == sku]
-        assert match[0]["status"] == "active"
+        assert match[0]["product_lifecycle"] == "active"
 
     def test_helpdesk_ticket_lifecycle_roundtrip(self, helpdesk):
         """Walk a ticket through states and verify each via API."""
@@ -187,19 +187,19 @@ class TestTransitionRoundTrip:
             "title": f"Lifecycle RT {tag}", "description": "test",
         })
         tid = r.json()["id"]
-        assert r.json()["status"] == "open"
+        assert r.json()["ticket_lifecycle"] == "open"
 
         # Transition: open → in progress
-        helpdesk.post(f"/_transition/tickets/{tid}/in progress")
+        helpdesk.post(f"/_transition/tickets/ticket_lifecycle/{tid}/in progress")
         tickets = helpdesk.get("/api/v1/tickets").json()
         match = [t for t in tickets if t["title"] == f"Lifecycle RT {tag}"]
-        assert match[0]["status"] == "in progress"
+        assert match[0]["ticket_lifecycle"] == "in progress"
 
         # Transition: in progress → resolved
-        helpdesk.post(f"/_transition/tickets/{tid}/resolved")
+        helpdesk.post(f"/_transition/tickets/ticket_lifecycle/{tid}/resolved")
         tickets = helpdesk.get("/api/v1/tickets").json()
         match = [t for t in tickets if t["title"] == f"Lifecycle RT {tag}"]
-        assert match[0]["status"] == "resolved"
+        assert match[0]["ticket_lifecycle"] == "resolved"
 
     def test_unauthorized_transition_no_state_change(self, warehouse):
         """Failed transition should not change state."""
@@ -212,14 +212,14 @@ class TestTransitionRoundTrip:
 
         # Executive can't activate (lacks write inventory)
         warehouse.set_role("executive")
-        r2 = warehouse.post(f"/_transition/products/{pid}/active")
+        r2 = warehouse.post(f"/_transition/products/product_lifecycle/{pid}/active")
         assert r2.status_code == 403
 
         # Verify status unchanged via API
         warehouse.set_role("warehouse manager")
         products = warehouse.get("/api/v1/products").json()
         match = [p for p in products if p["sku"] == sku]
-        assert match[0]["status"] == "draft"
+        assert match[0]["product_lifecycle"] == "draft"
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -264,7 +264,7 @@ class TestDataVisibilityRoundTrip:
             "sku": sku, "name": f"Status Vis {sku}", "category": "raw material",
         })
         pid = r.json()["id"]
-        warehouse.post(f"/_transition/products/{pid}/active")
+        warehouse.post(f"/_transition/products/product_lifecycle/{pid}/active")
 
         # The dashboard should show "active" for this product
         warehouse.set_role("warehouse clerk")

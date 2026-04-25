@@ -236,7 +236,7 @@ class TestErrorLog:
         warehouse.set_role("warehouse manager")
         # Trigger some errors
         warehouse.get("/api/v1/products/999999")
-        warehouse.post("/_transition/products/999999/active")
+        warehouse.post("/_transition/products/product_lifecycle/999999/active")
         r = warehouse.get("/api/errors")
         # Error log may or may not have entries depending on which paths log
         assert r.status_code == 200
@@ -295,7 +295,7 @@ class TestErrorStatus404:
     def test_transition_nonexistent_record(self, warehouse):
         """app.py: transition on missing record -> 404."""
         warehouse.set_role("warehouse manager")
-        r = warehouse.post("/_transition/products/999999/active")
+        r = warehouse.post("/_transition/products/product_lifecycle/999999/active")
         assert r.status_code == 404
 
     def test_transition_nonexistent_content(self, warehouse):
@@ -344,7 +344,7 @@ class TestErrorStatus403:
         })
         pid = r.json()["id"]
         warehouse.set_role("executive")
-        r2 = warehouse.post(f"/_transition/products/{pid}/active")
+        r2 = warehouse.post(f"/_transition/products/product_lifecycle/{pid}/active")
         assert r2.status_code == 403
 
     def test_content_scope_confidentiality_denied(self, hrportal):
@@ -365,7 +365,7 @@ class TestErrorStatus409:
         })
         pid = r.json()["id"]
         # draft -> discontinued is not a valid transition
-        r2 = warehouse.post(f"/_transition/products/{pid}/discontinued")
+        r2 = warehouse.post(f"/_transition/products/product_lifecycle/{pid}/discontinued")
         assert r2.status_code == 409
 
     def test_transition_to_current_state(self, warehouse):
@@ -376,7 +376,7 @@ class TestErrorStatus409:
         })
         pid = r.json()["id"]
         # draft -> draft is not declared
-        r2 = warehouse.post(f"/_transition/products/{pid}/draft")
+        r2 = warehouse.post(f"/_transition/products/product_lifecycle/{pid}/draft")
         assert r2.status_code == 409
 
     def test_duplicate_unique_field(self, warehouse):
@@ -702,47 +702,47 @@ class TestStateMachineEdgeCases:
         r = warehouse.get(f"/api/v1/products/{pid}")
         assert r.status_code == 200
         data = r.json()
-        assert data.get("status") == "draft", f"Expected draft, got {data}"
+        assert data.get("product_lifecycle") == "draft", f"Expected draft, got {data}"
 
     def test_client_cannot_override_initial_state(self, warehouse):
-        """state.py: status field ignored on create."""
+        """state.py: state-machine column ignored on create."""
         warehouse.set_role("warehouse manager")
         sku = _uid()
         r = warehouse.post("/api/v1/products", json={
             "sku": sku, "name": "Override", "category": "raw material",
-            "status": "active",
+            "product_lifecycle": "active",
         })
-        assert r.json().get("status") == "draft"
+        assert r.json().get("product_lifecycle") == "draft"
 
     def test_transition_changes_status_in_db(self, warehouse):
         """state.py: transition persists to storage."""
         pid = self._create_product(warehouse)
-        warehouse.post(f"/api/v1/products/{pid}/_transition/active")
+        warehouse.post(f"/api/v1/products/{pid}/_transition/product_lifecycle/active")
         r = warehouse.get(f"/api/v1/products/{pid}")
-        assert r.json().get("status") == "active"
+        assert r.json().get("product_lifecycle") == "active"
 
     def test_failed_transition_preserves_status(self, warehouse):
-        """state.py: rejected transition doesn't change status."""
+        """state.py: rejected transition doesn't change state."""
         pid = self._create_product(warehouse)
         # draft -> discontinued requires going through active first
-        r = warehouse.post(f"/api/v1/products/{pid}/_transition/discontinued")
+        r = warehouse.post(f"/api/v1/products/{pid}/_transition/product_lifecycle/discontinued")
         assert r.status_code in (409, 400, 403), f"Expected error, got {r.status_code}"
         r = warehouse.get(f"/api/v1/products/{pid}")
-        assert r.json().get("status") == "draft"
+        assert r.json().get("product_lifecycle") == "draft"
 
     def test_reverse_transition_after_lifecycle(self, warehouse):
         """state.py: activate after discontinue."""
         pid = self._create_product(warehouse)
-        warehouse.post(f"/api/v1/products/{pid}/_transition/active")
-        warehouse.post(f"/api/v1/products/{pid}/_transition/discontinued")
+        warehouse.post(f"/api/v1/products/{pid}/_transition/product_lifecycle/active")
+        warehouse.post(f"/api/v1/products/{pid}/_transition/product_lifecycle/discontinued")
         # Check if reactivation is allowed
-        r = warehouse.post(f"/api/v1/products/{pid}/_transition/active")
+        r = warehouse.post(f"/api/v1/products/{pid}/_transition/product_lifecycle/active")
         # Some state machines allow this, some don't
 
     def test_transition_to_nonexistent_state(self, warehouse):
         """state.py: target state not in machine -> 404 (no route)."""
         pid = self._create_product(warehouse)
-        r = warehouse.post(f"/api/v1/products/{pid}/_transition/completely_fake_state")
+        r = warehouse.post(f"/api/v1/products/{pid}/_transition/product_lifecycle/completely_fake_state")
         assert r.status_code in (404, 405)
 
     def test_helpdesk_multi_word_state(self, helpdesk):
@@ -752,7 +752,7 @@ class TestStateMachineEdgeCases:
             "title": f"MultiWord {_uid()}", "description": "t",
         })
         tid = r.json()["id"]
-        r2 = helpdesk.post(f"/_transition/tickets/{tid}/in progress")
+        r2 = helpdesk.post(f"/_transition/tickets/ticket_lifecycle/{tid}/in progress")
         assert r2.status_code in (200, 303)
 
     def test_helpdesk_waiting_on_customer(self, helpdesk):
@@ -762,8 +762,8 @@ class TestStateMachineEdgeCases:
             "title": f"Wait {_uid()}", "description": "t",
         })
         tid = r.json()["id"]
-        helpdesk.post(f"/_transition/tickets/{tid}/in progress")
-        r2 = helpdesk.post(f"/_transition/tickets/{tid}/waiting on customer")
+        helpdesk.post(f"/_transition/tickets/ticket_lifecycle/{tid}/in progress")
+        r2 = helpdesk.post(f"/_transition/tickets/ticket_lifecycle/{tid}/waiting on customer")
         assert r2.status_code in (200, 303)
 
     def test_compute_demo_order_state_machine(self, compute_demo):
@@ -773,7 +773,7 @@ class TestStateMachineEdgeCases:
             "customer": f"Cust {_uid()}", "total": 100.0, "priority": "high",
         })
         if r.status_code == 201:
-            assert r.json()["status"] == "pending"
+            assert r.json()["order_lifecycle"] == "pending"
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1387,7 +1387,7 @@ class TestHRPortalSalaryReviewLifecycle:
             "new_salary": 90000, "reason": "Performance",
         })
         assert r.status_code == 201
-        assert r.json()["status"] == "pending"
+        assert r.json()["review_lifecycle"] == "pending"
 
     def test_salary_review_pending_to_approved(self, hrportal):
         """state.py: pending -> approved transition."""
@@ -1401,7 +1401,7 @@ class TestHRPortalSalaryReviewLifecycle:
             "new_salary": 75000, "reason": "Annual",
         })
         sr_id = sr.json()["id"]
-        r = hrportal.post(f"/_transition/salary_reviews/{sr_id}/approved")
+        r = hrportal.post(f"/_transition/salary_reviews/review_lifecycle/{sr_id}/approved")
         assert r.status_code in (200, 303)
 
     def test_salary_review_full_lifecycle(self, hrportal):
@@ -1416,8 +1416,8 @@ class TestHRPortalSalaryReviewLifecycle:
             "new_salary": 65000, "reason": "Promo",
         })
         sr_id = sr.json()["id"]
-        hrportal.post(f"/_transition/salary_reviews/{sr_id}/approved")
-        r = hrportal.post(f"/_transition/salary_reviews/{sr_id}/applied")
+        hrportal.post(f"/_transition/salary_reviews/review_lifecycle/{sr_id}/approved")
+        r = hrportal.post(f"/_transition/salary_reviews/review_lifecycle/{sr_id}/applied")
         assert r.status_code in (200, 303)
 
 
