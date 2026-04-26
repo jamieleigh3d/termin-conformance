@@ -1,5 +1,44 @@
 # Changelog
 
+## Unreleased — v0.9 in progress
+
+### Phase 2.x (a): cascade grammar (2026-04-26)
+
+**New test pack:** `tests/test_v09_cascade.py` (9 tests) covering:
+- IR shape: every reference field carries a non-null
+  `cascade_mode in {cascade, restrict}`; non-reference fields carry
+  `null`.
+- Schema validation: every cascade fixture's IR validates against
+  the v0.9 schema, including the new `if/then/else` invariant on
+  FieldSpec.
+- Cascade-on-delete behavior: deleting a parent removes
+  cascade-children.
+- Restrict-on-delete behavior: deleting a parent with
+  restrict-children returns 409.
+- Self-cascade subtree deletion.
+- Optional FK with cascade — NULL-FK records unaffected by other
+  parents' deletes.
+- Multi-hop cascade chain (A → B → C all cascade).
+
+**New fixtures** in `fixtures-cascade/` (separate from production
+`fixtures/` since these are purpose-built test apps, not example
+applications):
+- `cascade_demo.termin.pkg`
+- `cascade_self_ref.termin.pkg`
+- `cascade_optional.termin.pkg`
+- `cascade_multihop_ok.termin.pkg`
+
+**Conftest:** new session-scoped fixtures for the four cascade test
+apps. Negative fixtures (`*_rejected.termin`) stay compiler-side —
+they exercise the compiler's refusal to compile structurally
+deadlocked or cyclic cascade graphs, which is a compile-time concern,
+not a runtime-conformance concern.
+
+**IR schema:** synced from compiler. New optional `cascade_mode`
+property on FieldSpec with a structural `if/then/else` invariant
+that requires it whenever `business_type == "reference"`. v0.8 IRs
+without `cascade_mode` on reference fields fail v0.9 validation.
+
 ## v0.8.1 (2026-04-21)
 
 ### Theme: Maintenance release

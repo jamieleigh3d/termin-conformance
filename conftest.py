@@ -12,6 +12,9 @@ import pytest
 from pathlib import Path
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
+# v0.9: cascade-grammar test fixtures live in their own directory so
+# they don't show up next to production-shaped example fixtures.
+CASCADE_FIXTURES_DIR = Path(__file__).parent / "fixtures-cascade"
 
 
 def _get_adapter():
@@ -44,12 +47,18 @@ _adapter = _get_adapter()
 _deployed_apps = {}
 
 
-def _get_app_session(app_name: str):
-    """Deploy an app (or reuse cached deployment) and return a session."""
+def _get_app_session(app_name: str, cascade: bool = False):
+    """Deploy an app (or reuse cached deployment) and return a session.
+
+    If `cascade` is True, the fixture is looked up in fixtures-cascade/
+    instead of fixtures/. v0.9 cascade-grammar test fixtures live there
+    so they don't pollute the production example fixture list.
+    """
     if app_name not in _deployed_apps:
-        fixture_path = FIXTURES_DIR / f"{app_name}.termin.pkg"
+        base = CASCADE_FIXTURES_DIR if cascade else FIXTURES_DIR
+        fixture_path = base / f"{app_name}.termin.pkg"
         if not fixture_path.exists():
-            raise FileNotFoundError(f"No .termin.pkg fixture for '{app_name}' in {FIXTURES_DIR}")
+            raise FileNotFoundError(f"No .termin.pkg fixture for '{app_name}' in {base}")
 
         app_info = _adapter.deploy(fixture_path, app_name)
         session = _adapter.create_session(app_info)
@@ -150,6 +159,44 @@ def approval_workflow():
     Two state machines on `documents`: lifecycle + approval_status.
     """
     app_info, session = _get_app_session("approval_workflow")
+    yield session
+    if app_info.cleanup:
+        app_info.cleanup()
+
+
+# ── v0.9 cascade-grammar test fixtures ──
+
+@pytest.fixture(scope="session")
+def cascade_demo():
+    """v0.9 fixture — three contents demonstrating both cascade modes:
+    parents, cascade children (cascade on delete), restrict children
+    (restrict on delete).
+    """
+    app_info, session = _get_app_session("cascade_demo", cascade=True)
+    yield session
+    if app_info.cleanup:
+        app_info.cleanup()
+
+@pytest.fixture(scope="session")
+def cascade_self_ref():
+    """v0.9 fixture — tree nodes with self-cascade-on-delete reference."""
+    app_info, session = _get_app_session("cascade_self_ref", cascade=True)
+    yield session
+    if app_info.cleanup:
+        app_info.cleanup()
+
+@pytest.fixture(scope="session")
+def cascade_optional():
+    """v0.9 fixture — non-required cascade reference for NULL-FK behavior."""
+    app_info, session = _get_app_session("cascade_optional", cascade=True)
+    yield session
+    if app_info.cleanup:
+        app_info.cleanup()
+
+@pytest.fixture(scope="session")
+def cascade_multihop_ok():
+    """v0.9 fixture — A → B → C all cascade. Multi-hop propagation."""
+    app_info, session = _get_app_session("cascade_multihop_ok", cascade=True)
     yield session
     if app_info.cleanup:
         app_info.cleanup()
