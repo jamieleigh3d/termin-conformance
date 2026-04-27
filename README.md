@@ -116,11 +116,26 @@ The suite deploys 12 test apps once per session and runs all tests via HTTP and 
 | `test_ir_schema_validation.py` | 94 | Every IR fixture validates against the IR JSON Schema (draft 2020-12) |
 | `test_behavioral_ws.py` | 5 | Real WebSocket push: create→push, update→push, subscribe current, payload shape, no cross-content leakage |
 
+### Tier 5: v0.9 Migration Conformance (73 tests)
+
+Per [`specs/migration-contract.md`](specs/migration-contract.md). The migration contract is the language-level invariant that makes apps portable across runtimes and providers — every conforming pair must produce the same `MigrationDiff` for the same `(current_schema, target_ir)` pair, gate operator-acks the same way, and provide atomicity through the provider's `migrate()` call.
+
+| File | Tests | What it validates |
+|------|-------|-------------------|
+| `test_v09_migration_classifier.py` | 32 | Classifier produces the expected `MigrationDiff` per §5.1/§5.2/§5.3 — every change kind × every classification tier (safe/low/medium/high/blocked), aggregation rules, empty-table downgrade |
+| `test_v09_migration_ack_gating.py` | 22 | Operator ack gating per §7.2 — production-strict default, dev_mode + accept_any_low blanket-low semantics, per-change fingerprint ack, the complete gating matrix |
+| `test_v09_migration_apply.py` | 6 | Provider `migrate()` produces the expected post-state per §6 — comparison via runtime `query()` (provider-agnostic, no SQL dumps) |
+| `test_v09_migration_fault_injection.py` | 6 | Atomicity contract per §6.2 + §9.4 — faults injected at `pre_apply` / `mid_apply` / `pre_commit` stages must leave the database observably identical to its pre-call state |
+| `test_v09_migration_e2e.py` | 7 | Full deploy flow per §9.3, including the v0.8 → v0.9 round-trip case (introspection of a real v0.8.1 SQLite DB, controlled migration, data preservation) |
+
+The v0.8 round-trip fixture lives at `fixtures/migrations/v08_round_trip/` and was generated via a temporary clone of `termin-compiler` at the v0.8.1 tag. See `fixtures/migrations/README.md` for the fixture format and regeneration procedure.
+
 ## Specifications
 
 - **[IR JSON Schema](specs/termin-ir-schema.json)** — Machine-readable contract defining the structure of compiled Termin applications (IR version 0.9.0)
 - **[Runtime Implementer's Guide](specs/termin-runtime-implementers-guide.md)** — How to build a conforming runtime: storage, access control, state machines, events, presentation, CEL expressions, WebSocket protocol, behavioral contract
 - **[Package Format](specs/termin-package-format.md)** — `.termin.pkg` ZIP structure, manifest versioning, checksums, revision tracking
+- **[Migration Contract](specs/migration-contract.md)** — Language-level migration semantics: 5-tier risk classification, operator ack workflow (per-change fingerprints + dev-mode blanket flag), provider `migrate()` contract (atomicity, idempotency, fault injection), cross-version migration story (v0.8 → v0.9), conformance test methodology
 
 ## IR Version
 
