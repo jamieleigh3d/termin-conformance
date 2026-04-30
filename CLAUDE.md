@@ -7,6 +7,50 @@ flow, and the rules that keep the suite portable across runtimes.
 See `CONTRIBUTING.md` in the sibling `termin-compiler` repo for the DCO
 sign-off requirement and general contribution workflow.
 
+## Public-Repo Codename Discipline (NON-NEGOTIABLE)
+
+**This repository is public.** Anything written here ships publicly
+the moment the next push goes out — no later, no "someone will catch
+it before release."
+
+- **Never write internal employer/vendor codenames** in this tree.
+  Not in source code comments, not in markdown docs (specs,
+  Implementer's Guide, CHANGELOG, README), not in commit messages,
+  not in PR descriptions, not in test fixtures (`.termin.pkg` source,
+  `*_seed.json`, `*.deploy.json`), not in adapter code. The bar is
+  "recognizable only to someone with the corresponding
+  employer/vendor context → omit or genericize."
+- **Genericize.** Use **"an AWS-native Termin runtime"** when AWS
+  context matters (enterprise, regulated, air-gapped deployments).
+  Use **"an alternate Termin runtime"** when the context is just
+  "a second runtime exists." Use **"a third-party Rust port"** when
+  the language matters.
+- **No checked-in list of prohibited names.** A list of
+  names-to-not-write would itself be a list of names. The discipline
+  lives in private workspace context and Claude's session judgment,
+  not in any file in this tree. When unsure whether a given term
+  counts: **omit and ask**, never write-and-hope.
+- **Verify before every push** by reading your own diff critically.
+  The pattern `<generic descriptor> (<internal codename>, <internal
+  context>)` in parentheses is the most common form of the slip.
+  Search for the word "internal" in your diff — that decoration
+  almost often sits next to a leakable codename.
+- **Special hot zones in this repo:** `.termin.pkg` fixtures
+  (decompress + scan their `.termin` source), `*_seed.json` files
+  (synthetic data only — never employer/internal company names,
+  product names, or domain-specific terms), and the adapter
+  implementations (which historically borrow comments from
+  termin-compiler).
+- **History remediation** is a separate v1.0 public-launch operation;
+  the discipline here is about *current state*. Every push starts
+  clean.
+
+This rule was added 2026-04-30 after 17 references slipped into the
+sibling `termin-compiler` public repo. The rule now travels with each
+public repo's CLAUDE.md AND lives in the workspace-root CLAUDE.md, so
+no session in any Termin-family repo is more than one auto-loaded file
+away from it.
+
 ## What this is
 
 The **Termin Conformance Suite** is a separate public repo
