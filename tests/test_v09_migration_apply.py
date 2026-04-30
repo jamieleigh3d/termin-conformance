@@ -29,14 +29,14 @@ from typing import Any, Mapping, Sequence
 
 import pytest
 
-from termin_runtime.providers.builtins.storage_sqlite import SqliteStorageProvider
-from termin_runtime.providers.storage_contract import (
+from termin_server.providers.builtins.storage_sqlite import SqliteStorageProvider
+from termin_server.providers.storage_contract import (
     Eq, QueryOptions, MigrationDiff, ContentChange, FieldChange,
 )
-from termin_runtime.migrations.classifier import (
+from termin_server.migrations.classifier import (
     compute_migration_diff, apply_rename_mappings, downgrade_for_empty_tables,
 )
-from termin_runtime import storage as _storage
+from termin_server import storage as _storage
 
 
 # ── Schema-construction helpers (shared with classifier tests) ──────

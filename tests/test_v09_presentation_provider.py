@@ -22,7 +22,7 @@ suite is the spec." If a behavior isn't tested here, it isn't
 specified. Provider authors and alternative-runtime authors MUST
 satisfy these tests.
 
-Imports from termin_runtime / termin directly mirror the migration
+Imports from termin_server / termin directly mirror the migration
 conformance pack — provider authors are the primary audience and
 they reuse the reference runtime + plug in a provider, so direct
 import is the natural surface. Alternative-runtime authors will
@@ -59,7 +59,7 @@ def _fake_provider_registry(
     the given contracts under `product_name`. The factory returns a
     new MagicMock each call so caching tests can count instances.
     """
-    from termin_runtime.providers import (
+    from termin_server.providers import (
         Category, ContractRegistry, ProviderRegistry,
     )
     contracts = ContractRegistry.default()
@@ -80,7 +80,7 @@ def _fake_provider_registry(
 
 
 def _presentation_base_contracts() -> tuple[str, ...]:
-    from termin_runtime.providers.presentation_contract import (
+    from termin_server.providers.presentation_contract import (
         PRESENTATION_BASE_CONTRACTS,
     )
     return tuple(f"presentation-base.{n}" for n in PRESENTATION_BASE_CONTRACTS)
@@ -92,7 +92,7 @@ def test_presentation_provider_protocol_runtime_checkable():
     """A simple object with declared_contracts + render_modes +
     render_ssr + csr_bundle_url MUST satisfy isinstance against
     PresentationProvider Protocol."""
-    from termin_runtime.providers.presentation_contract import (
+    from termin_server.providers.presentation_contract import (
         PresentationProvider,
     )
 
@@ -114,7 +114,7 @@ def test_presentation_base_namespace_has_ten_contracts():
     contracts — page, text, markdown, data-table, form, chat, metric,
     nav-bar, toast, banner. Conforming runtimes MUST recognize all
     ten."""
-    from termin_runtime.providers.presentation_contract import (
+    from termin_server.providers.presentation_contract import (
         PRESENTATION_BASE_CONTRACTS,
     )
     expected = {
@@ -128,7 +128,7 @@ def test_redacted_sentinel_distinct_from_none_and_empty():
     """Field-level redaction marker (BRD §7.6) MUST be a distinct
     sentinel — providers must be able to discriminate redaction from
     natural absence (None / "" / 0 / False)."""
-    from termin_runtime.providers.presentation_contract import (
+    from termin_server.providers.presentation_contract import (
         Redacted, is_redacted,
     )
     r = Redacted(field_name="ssn", expected_type="text")
@@ -144,7 +144,7 @@ def test_redacted_json_default_produces_wire_shape():
     `__redacted: true` discriminator so CSR providers can detect it
     over the wire without inspecting Python type tags."""
     import json
-    from termin_runtime.providers.presentation_contract import (
+    from termin_server.providers.presentation_contract import (
         Redacted, redacted_json_default,
     )
     r = Redacted(field_name="salary", expected_type="currency", reason="hr.salary")
@@ -160,7 +160,7 @@ def test_redacted_json_default_produces_wire_shape():
 def test_namespace_binding_fans_out_to_all_contracts():
     """A `presentation-base` namespace binding MUST emit one triple
     per contract in the namespace."""
-    from termin_runtime.app import _populate_presentation_providers
+    from termin_server.app import _populate_presentation_providers
     base = _presentation_base_contracts()
     registry, contracts, _ = _fake_provider_registry("test", base)
     ctx = _Ctx()
@@ -178,7 +178,7 @@ def test_namespace_binding_fans_out_to_all_contracts():
 def test_per_contract_binding_does_not_fan_out():
     """A binding keyed on a fully-qualified contract name MUST target
     exactly that contract — no namespace expansion."""
-    from termin_runtime.app import _populate_presentation_providers
+    from termin_server.app import _populate_presentation_providers
     base = _presentation_base_contracts()
     registry, contracts, _ = _fake_provider_registry("test", base)
     ctx = _Ctx()
@@ -196,7 +196,7 @@ def test_per_contract_binding_does_not_fan_out():
 def test_per_contract_binding_wins_over_namespace_binding():
     """When both a namespace binding and a per-contract binding apply,
     the per-contract one MUST win."""
-    from termin_runtime.app import _populate_presentation_providers
+    from termin_server.app import _populate_presentation_providers
     base = _presentation_base_contracts()
     registry, contracts, _ = _fake_provider_registry("default", base)
     # Add a second product registered for just one contract.
@@ -227,7 +227,7 @@ def test_factory_called_once_per_product_across_namespace():
     """A factory invoked for product P MUST be called exactly once
     across the fan-out. The single instance binds to every contract
     in the namespace."""
-    from termin_runtime.app import _populate_presentation_providers
+    from termin_server.app import _populate_presentation_providers
     base = _presentation_base_contracts()
     registry, contracts, instances = _fake_provider_registry("test", base)
     ctx = _Ctx()
@@ -247,7 +247,7 @@ def test_factory_receives_config_dict():
     """The factory invocation MUST receive the deploy config's
     `config` sub-dict so providers can read their per-deploy
     configuration (theme overrides, bundle URL overrides, etc.)."""
-    from termin_runtime.app import _populate_presentation_providers
+    from termin_server.app import _populate_presentation_providers
     base = _presentation_base_contracts()
     registry, contracts, instances = _fake_provider_registry("test", base)
     ctx = _Ctx()
@@ -269,7 +269,7 @@ def test_factory_receives_config_dict():
 def test_alternate_top_level_shape_accepted():
     """Both `bindings.presentation.<key>` and
     `presentation.bindings.<key>` MUST be accepted."""
-    from termin_runtime.app import _populate_presentation_providers
+    from termin_server.app import _populate_presentation_providers
     base = _presentation_base_contracts()
     registry, contracts, _ = _fake_provider_registry("test", base)
     ctx = _Ctx()
@@ -286,11 +286,11 @@ def test_alternate_top_level_shape_accepted():
 def test_default_tailwind_synthesis_when_no_binding():
     """No presentation binding MUST synthesize a default
     `tailwind-default` binding for presentation-base."""
-    from termin_runtime.app import _populate_presentation_providers
-    from termin_runtime.providers import (
+    from termin_server.app import _populate_presentation_providers
+    from termin_server.providers import (
         Category, ContractRegistry, ProviderRegistry,
     )
-    from termin_runtime.providers.builtins.presentation_tailwind_default import (
+    from termin_server.providers.builtins.presentation_tailwind_default import (
         register_tailwind_default,
     )
     contracts = ContractRegistry.default()
@@ -310,7 +310,7 @@ def test_default_tailwind_synthesis_when_no_binding():
 def test_explicit_binding_overrides_default_synthesis():
     """An explicit binding to `presentation-base` MUST suppress the
     default-Tailwind synthesis."""
-    from termin_runtime.app import _populate_presentation_providers
+    from termin_server.app import _populate_presentation_providers
     base = _presentation_base_contracts()
     registry, contracts, _ = _fake_provider_registry("explicit", base)
     ctx = _Ctx()
@@ -329,7 +329,7 @@ def test_unknown_product_emits_no_triple():
     """A binding to a product nobody registered MUST NOT crash; the
     fan-out emits no triple. Deploy-time required_contracts
     validation is the fail-closed surface."""
-    from termin_runtime.app import _populate_presentation_providers
+    from termin_server.app import _populate_presentation_providers
     base = _presentation_base_contracts()
     registry, contracts, _ = _fake_provider_registry("real", base)
     ctx = _Ctx()
@@ -347,7 +347,7 @@ def test_unknown_namespace_emits_no_triple():
     """A namespace binding for a namespace no contract package
     declares MUST NOT crash; same fail-soft policy as unknown
     product."""
-    from termin_runtime.app import _populate_presentation_providers
+    from termin_server.app import _populate_presentation_providers
     base = _presentation_base_contracts()
     registry, contracts, _ = _fake_provider_registry("real", base)
     ctx = _Ctx(contract_package_registry=None)
@@ -368,14 +368,14 @@ def test_package_namespace_binding_fans_out_via_registry(tmp_path):
     """A namespace binding for a contract-package namespace MUST fan
     out to every contract the package declares — same shape as
     presentation-base, just sourced from the package registry."""
-    from termin_runtime.app import _populate_presentation_providers
+    from termin_server.app import _populate_presentation_providers
     from termin.contract_packages import (
         load_contract_packages_into_registry,
     )
-    from termin_runtime.providers.contracts import (
+    from termin_server.providers.contracts import (
         Category, ContractDefinition, Tier,
     )
-    from termin_runtime.providers import (
+    from termin_server.providers import (
         ContractRegistry, ProviderRegistry,
     )
 
@@ -597,7 +597,7 @@ def test_registry_collects_verbs_for_grammar_extension(tmp_path):
 def test_load_contract_packages_attaches_registry_to_ctx(tmp_path):
     """A deploy config declaring contract_packages MUST populate
     `ctx.contract_package_registry` at app startup."""
-    from termin_runtime.app import _load_contract_packages
+    from termin_server.app import _load_contract_packages
     pkg = tmp_path / "demo.yaml"
     pkg.write_text(textwrap.dedent("""
         namespace: demo-ns
@@ -619,7 +619,7 @@ def test_load_contract_packages_attaches_registry_to_ctx(tmp_path):
 def test_load_contract_packages_no_field_is_noop():
     """An app declaring no contract_packages MUST be deployable with
     `ctx.contract_package_registry` left at None."""
-    from termin_runtime.app import _load_contract_packages
+    from termin_server.app import _load_contract_packages
 
     class _Ctx2:
         contract_package_registry = None
@@ -632,7 +632,7 @@ def test_load_contract_packages_no_field_is_noop():
 def test_load_contract_packages_resolves_relative_to_deploy_path(tmp_path):
     """Paths in deploy config MUST resolve relative to the deploy
     file's parent directory — the natural authoring layout."""
-    from termin_runtime.app import _load_contract_packages
+    from termin_server.app import _load_contract_packages
     sub = tmp_path / "deploys"
     sub.mkdir()
     pkg_dir = sub / "contract_packages"
@@ -661,7 +661,7 @@ def test_load_contract_packages_resolves_relative_to_deploy_path(tmp_path):
 def test_load_contract_packages_fail_closed_on_missing_file(tmp_path):
     """Missing package file MUST fail at startup — `Using
     "<ns>.<contract>"` references in source would be unresolvable."""
-    from termin_runtime.app import _load_contract_packages
+    from termin_server.app import _load_contract_packages
 
     class _Ctx2:
         contract_package_registry = None
@@ -674,7 +674,7 @@ def test_load_contract_packages_fail_closed_on_missing_file(tmp_path):
 
 def test_load_contract_packages_fail_closed_on_verb_collision(tmp_path):
     """Cross-package verb collision MUST fail at startup."""
-    from termin_runtime.app import _load_contract_packages
+    from termin_server.app import _load_contract_packages
     a = tmp_path / "a.yaml"
     a.write_text(textwrap.dedent("""
         namespace: a-ns
@@ -704,7 +704,7 @@ def test_load_contract_packages_fail_closed_on_verb_collision(tmp_path):
 def test_load_contract_packages_rejects_non_list_value():
     """Type validation: `contract_packages` MUST be a list, not a
     string. Defensive against deploy-config typos."""
-    from termin_runtime.app import _load_contract_packages
+    from termin_server.app import _load_contract_packages
 
     class _Ctx2:
         contract_package_registry = None

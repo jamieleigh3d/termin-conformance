@@ -25,7 +25,7 @@ import pytest
 import uvicorn
 import websockets.asyncio.client
 
-from termin_runtime import create_termin_app
+from termin_server import create_termin_app
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 

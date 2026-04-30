@@ -71,7 +71,7 @@ class ReferenceAdapter(RuntimeAdapter):
     def deploy(self, fixture_path: Path, app_name: str) -> AppInfo:
         # Slice 7.3 of Phase 7 (2026-04-30): the reference runtime moved
         # to the termin-server sibling repo. The legacy
-        # ``from termin_runtime import create_termin_app`` shim still
+        # ``from termin_server import create_termin_app`` shim still
         # works through v0.9; use the canonical path here so the adapter
         # is forward-clean.
         from termin_server import create_termin_app

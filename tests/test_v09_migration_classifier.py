@@ -24,12 +24,12 @@ from typing import Any, Mapping, Optional, Sequence
 
 import pytest
 
-from termin_runtime.migrations.classifier import (
+from termin_server.migrations.classifier import (
     compute_migration_diff,
     apply_rename_mappings,
     downgrade_for_empty_tables,
 )
-from termin_runtime.providers.storage_contract import (
+from termin_server.providers.storage_contract import (
     MigrationDiff, ContentChange, FieldChange,
 )
 
@@ -105,7 +105,7 @@ def _field_classifications(diff: MigrationDiff, content: str) -> dict:
     """Return {field_name: per-field classification} for the named content's
     field changes. Computed via the same path the runtime uses (per
     classifier.classify_field_change)."""
-    from termin_runtime.migrations.classifier import classify_field_change
+    from termin_server.migrations.classifier import classify_field_change
     for cc in diff.changes:
         if cc.content_name != content or cc.kind != "modified":
             continue
@@ -158,7 +158,7 @@ class TestContentLevelClassification:
         # Stub provider that reports the table is empty.
         class EmptyProvider:
             async def query(self, content_type, predicate=None, options=None):
-                from termin_runtime.providers.storage_contract import Page
+                from termin_server.providers.storage_contract import Page
                 return Page(records=(), next_cursor=None, estimated_total=0)
 
         diff = await downgrade_for_empty_tables(diff, EmptyProvider())
@@ -254,7 +254,7 @@ class TestFieldRemovalClassification:
 
         class EmptyProvider:
             async def query(self, content_type, predicate=None, options=None):
-                from termin_runtime.providers.storage_contract import Page
+                from termin_server.providers.storage_contract import Page
                 return Page(records=(), next_cursor=None, estimated_total=0)
 
         diff = await downgrade_for_empty_tables(diff, EmptyProvider())
@@ -295,7 +295,7 @@ class TestFieldRenameClassification:
         the bare removed/added pair (TODO: thread old schema through the
         rename folder); that gap is tracked separately.
         """
-        from termin_runtime.migrations.classifier import classify_field_change
+        from termin_server.migrations.classifier import classify_field_change
         fc = FieldChange(
             kind="renamed",
             field_name="amount",
@@ -477,7 +477,7 @@ class TestForeignKeyChangeClassification:
         change, not the FK change. That aggregation case is exercised
         in test_remove_fk_aggregates_to_high below.
         """
-        from termin_runtime.migrations.classifier import classify_field_change
+        from termin_server.migrations.classifier import classify_field_change
         fc = FieldChange(
             kind="foreign_key_changed",
             field_name="assignee_id",
@@ -590,7 +590,7 @@ class TestEmptyTableDowngrade:
 
         class EmptyProvider:
             async def query(self, content_type, predicate=None, options=None):
-                from termin_runtime.providers.storage_contract import Page
+                from termin_server.providers.storage_contract import Page
                 return Page(records=(), next_cursor=None, estimated_total=0)
 
         downgraded = await downgrade_for_empty_tables(diff, EmptyProvider())
@@ -606,7 +606,7 @@ class TestEmptyTableDowngrade:
 
         class NonEmptyProvider:
             async def query(self, content_type, predicate=None, options=None):
-                from termin_runtime.providers.storage_contract import Page
+                from termin_server.providers.storage_contract import Page
                 return Page(
                     records=({"id": 1, "title": "x", "notes": "y"},),
                     next_cursor=None, estimated_total=1)

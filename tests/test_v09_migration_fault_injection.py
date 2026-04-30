@@ -23,11 +23,11 @@ import tempfile
 
 import pytest
 
-from termin_runtime.providers.builtins.storage_sqlite import SqliteStorageProvider
-from termin_runtime.providers.storage_contract import (
+from termin_server.providers.builtins.storage_sqlite import SqliteStorageProvider
+from termin_server.providers.storage_contract import (
     QueryOptions, ProviderInjectedFault,
 )
-from termin_runtime.migrations.classifier import compute_migration_diff
+from termin_server.migrations.classifier import compute_migration_diff
 
 # Reuse helpers from the apply test file.
 from .test_v09_migration_apply import (
