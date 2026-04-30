@@ -148,7 +148,9 @@ class ServedReferenceAdapter(RuntimeAdapter):
         self._servers = {}
 
     def deploy(self, fixture_path: Path, app_name: str) -> AppInfo:
-        from termin_runtime import create_termin_app
+        # Slice 7.3 of Phase 7 (2026-04-30): canonical path after the
+        # runtime extraction.
+        from termin_server import create_termin_app
 
         ir = self.load_ir_from_fixture(fixture_path)
         ir_json = json.dumps(ir)

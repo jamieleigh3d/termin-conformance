@@ -69,7 +69,12 @@ class ReferenceAdapter(RuntimeAdapter):
         self._sessions = {}
 
     def deploy(self, fixture_path: Path, app_name: str) -> AppInfo:
-        from termin_runtime import create_termin_app
+        # Slice 7.3 of Phase 7 (2026-04-30): the reference runtime moved
+        # to the termin-server sibling repo. The legacy
+        # ``from termin_runtime import create_termin_app`` shim still
+        # works through v0.9; use the canonical path here so the adapter
+        # is forward-clean.
+        from termin_server import create_termin_app
         from fastapi.testclient import TestClient
 
         ir = self.load_ir_from_fixture(fixture_path)
@@ -110,8 +115,8 @@ class ReferenceAdapter(RuntimeAdapter):
 
     def deploy_with_agent_mock(self, fixture_path, app_name, tool_calls):
         """Deploy with a mock AI provider that executes the given tool calls."""
-        from termin_runtime import create_termin_app
-        from termin_runtime.ai_provider import AIProvider
+        from termin_server import create_termin_app
+        from termin_server.ai_provider import AIProvider
         from fastapi.testclient import TestClient
         import tempfile
 
