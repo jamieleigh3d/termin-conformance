@@ -23,7 +23,7 @@ from pathlib import Path
 import httpx
 import pytest
 import uvicorn
-import websockets.client
+import websockets.asyncio.client
 
 from termin_runtime import create_termin_app
 
@@ -180,7 +180,7 @@ class TestBehavioralWebSocket:
         """Create record via API, WS subscriber receives push within 2 seconds."""
         server = agent_simple_ws_server
 
-        async with websockets.client.connect(server.ws_url) as ws:
+        async with websockets.asyncio.client.connect(server.ws_url) as ws:
             # Subscribe to completions content channel
             await ws.send(json.dumps({
                 "v": 1, "ch": "content.completions", "op": "subscribe",
@@ -232,7 +232,7 @@ class TestBehavioralWebSocket:
             product_id = create_resp.json()["id"]
 
         # Now subscribe and update
-        async with websockets.client.connect(server.ws_url) as ws:
+        async with websockets.asyncio.client.connect(server.ws_url) as ws:
             await ws.send(json.dumps({
                 "v": 1, "ch": "content.products", "op": "subscribe",
                 "ref": "sub1", "payload": {},
@@ -263,7 +263,7 @@ class TestBehavioralWebSocket:
         """Push payload is the record dict with 'id' and field names from IR."""
         server = agent_simple_ws_server
 
-        async with websockets.client.connect(server.ws_url) as ws:
+        async with websockets.asyncio.client.connect(server.ws_url) as ws:
             await ws.send(json.dumps({
                 "v": 1, "ch": "content.completions", "op": "subscribe",
                 "ref": "sub1", "payload": {},
@@ -304,7 +304,7 @@ class TestBehavioralWebSocket:
             )
 
         # Subscribe — response should include current data
-        async with websockets.client.connect(server.ws_url) as ws:
+        async with websockets.asyncio.client.connect(server.ws_url) as ws:
             await ws.send(json.dumps({
                 "v": 1, "ch": "content.completions", "op": "subscribe",
                 "ref": "sub1", "payload": {},
@@ -327,7 +327,7 @@ class TestBehavioralWebSocket:
         """Creating content type A does not push to content type B subscribers."""
         server = channel_simple_ws_server
 
-        async with websockets.client.connect(server.ws_url) as ws:
+        async with websockets.asyncio.client.connect(server.ws_url) as ws:
             # Subscribe to echoes ONLY
             await ws.send(json.dumps({
                 "v": 1, "ch": "content.echoes", "op": "subscribe",
