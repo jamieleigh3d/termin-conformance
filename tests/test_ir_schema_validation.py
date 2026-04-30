@@ -292,6 +292,11 @@ class TestIRStructuralIntegrity:
             "events", "routes", "pages", "nav_items", "streams",
             "computes", "channels", "boundaries",
             "error_handlers", "reclassification_points",
+            # v0.9 Phase 5a.1: presentation contracts the IR's pages
+            # require. Aggregated from `node.contract` across pages
+            # at lower time. Used by deploy-time validation to enforce
+            # that every required contract has a bound provider.
+            "required_contracts",
         }
         extra = set(ir_data.keys()) - known_keys
         assert not extra, (

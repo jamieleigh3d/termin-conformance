@@ -2,6 +2,37 @@
 
 ## Unreleased — v0.9 in progress
 
+### Phase 5: presentation provider conformance pack (2026-04-29)
+
+**New test pack:** `tests/test_v09_presentation_provider.py` (33 tests)
+covering the v0.9 Phase 5 contracts every conforming runtime + provider
+pair must satisfy.
+
+**New spec:** `specs/presentation-contract.md` (~200 lines) — companion
+to BRD #2. Captures the language-level invariants the test pack
+exercises. Three sections:
+- §2 Provider Protocol — declared_contracts, render_modes, render_ssr,
+  csr_bundle_url, Redacted sentinel + JSON wire shape.
+- §3 Binding resolution — namespace fan-out, per-contract override,
+  instance caching, default-Tailwind synthesis, unknown-product /
+  unknown-namespace fail-soft, package-namespace expansion via the
+  contract-package registry.
+- §4 Contract package loading — well-formed YAML, missing required
+  fields, intra-package + cross-package verb collision (BRD §4.5),
+  deploy-config wiring, fail-closed on missing file / verb collision,
+  no-packages no-op, deploy-relative path resolution.
+
+Per BRD #2 §12 / Q8 the pack lands as one commit after the underlying
+compiler slices (5c.1-5c.4) merge to `feature/v0.9` — the cross-repo
+sequencing constraint is satisfied.
+
+**Out of scope for v0.9, deferred to v0.10:**
+- Per-component override-mode dispatch (mixing SSR Tailwind + CSR
+  Spectrum within a single page).
+- SSR rendering through `PresentationProvider.render_ssr` (the legacy
+  presentation.py path remains authoritative until a runtime-side
+  refactor lands).
+
 ### Phase 2.x (a): cascade grammar (2026-04-26)
 
 **New test pack:** `tests/test_v09_cascade.py` (9 tests) covering:
