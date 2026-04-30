@@ -1,10 +1,10 @@
-"""Conformance — v0.8 auto-CRUD list-endpoint query params.
+"""Conformance — auto-CRUD list-endpoint query params.
 
 Every conforming runtime must implement the following query parameter
 contract on auto-generated list endpoints (`GET /api/v1/<content>`):
 
   ?limit=N         bound the response to at most N records
-  ?offset=N        skip the first N records
+  ?cursor=TOKEN    keyset-cursor pagination (v0.9; offset retired)
   ?sort=field      sort ascending by a schema field
   ?sort=field:asc  explicit ascending
   ?sort=field:desc descending
@@ -12,7 +12,9 @@ contract on auto-generated list endpoints (`GET /api/v1/<content>`):
 
 Validation:
   - limit must be a non-negative integer <= a sane cap (1000).
-  - offset must be a non-negative integer.
+  - ?offset= is rejected with HTTP 400 and a migration-guidance message
+    (v0.9 retired offset in favor of cursor; silent acceptance would
+    let upgraded callers silently get incorrect behavior).
   - sort field must exist on the schema.
   - sort direction must be 'asc' or 'desc'.
   - filter field must exist on the schema.
@@ -44,10 +46,24 @@ class TestListEndpointPagination:
         assert r.status_code == 200
         assert len(r.json()) == 3
 
-    def test_offset_skips_records(self, warehouse):
-        r_all = warehouse.get("/api/v1/products").json()
-        r = warehouse.get("/api/v1/products?offset=3").json()
-        assert len(r) == max(0, len(r_all) - 3)
+    def test_offset_param_rejected_with_v09_guidance(self, warehouse):
+        """v0.9 retired ?offset= in favor of keyset cursors (BRD §6.2).
+        The runtime must reject ?offset= with 400 + a migration message
+        rather than silently honor or ignore it — silent behavior on a
+        breaking change is the trap the gate exists to close. Any
+        positive integer triggers the rejection (separate from the
+        negative-offset validation that pre-dates v0.9)."""
+        r = warehouse.get("/api/v1/products?offset=3")
+        assert r.status_code == 400, (
+            f"?offset= must be rejected with 400 in v0.9; got "
+            f"{r.status_code}: {r.text}")
+        # The body should mention `cursor` so callers know how to migrate.
+        # A well-behaved runtime puts the migration guidance in `detail`.
+        body = r.json()
+        msg = str(body.get("detail", body)).lower()
+        assert "cursor" in msg, (
+            f"v0.9 offset-rejection should reference the cursor "
+            f"replacement in its error message; got {body!r}")
 
     def test_limit_zero_returns_empty(self, warehouse):
         r = warehouse.get("/api/v1/products?limit=0")

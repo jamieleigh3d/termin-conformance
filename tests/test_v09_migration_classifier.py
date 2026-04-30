@@ -143,7 +143,8 @@ class TestContentLevelClassification:
         )
         assert _classifications_by_content(diff) == {"tickets": "blocked"}
 
-    def test_remove_empty_content_downgrades_to_low(self):
+    @pytest.mark.asyncio
+    async def test_remove_empty_content_downgrades_to_low(self):
         """Remove content + empty table → low (§5.3).
 
         Note: downgrade target is `low`, NOT `safe` — the operator
@@ -160,8 +161,7 @@ class TestContentLevelClassification:
                 from termin_runtime.providers.storage_contract import Page
                 return Page(records=(), next_cursor=None, estimated_total=0)
 
-        import asyncio
-        diff = asyncio.run(downgrade_for_empty_tables(diff, EmptyProvider()))
+        diff = await downgrade_for_empty_tables(diff, EmptyProvider())
         assert _classifications_by_content(diff) == {"tickets": "low"}
 
     def test_rename_content_is_low(self):
@@ -243,7 +243,8 @@ class TestFieldRemovalClassification:
         # tier propagates up to ContentChange.classification.
         assert _classifications_by_content(diff)["tickets"] == "blocked"
 
-    def test_remove_field_empty_table_downgrades_to_safe(self):
+    @pytest.mark.asyncio
+    async def test_remove_field_empty_table_downgrades_to_safe(self):
         """Remove field + empty table → safe (§5.3)."""
         diff = compute_migration_diff(
             current=[schema("tickets",
@@ -256,8 +257,7 @@ class TestFieldRemovalClassification:
                 from termin_runtime.providers.storage_contract import Page
                 return Page(records=(), next_cursor=None, estimated_total=0)
 
-        import asyncio
-        diff = asyncio.run(downgrade_for_empty_tables(diff, EmptyProvider()))
+        diff = await downgrade_for_empty_tables(diff, EmptyProvider())
         # On empty tables, blocked downgrades to safe (or low at most).
         assert _classifications_by_content(diff)["tickets"] in ("safe", "low")
 
@@ -580,7 +580,8 @@ class TestEmptyTableDowngrade:
     """Per migration-contract.md §5.3 — destructive changes against
     empty tables downgrade to safe (or low at most)."""
 
-    def test_blocked_remove_field_empty_table_downgrades(self):
+    @pytest.mark.asyncio
+    async def test_blocked_remove_field_empty_table_downgrades(self):
         diff = compute_migration_diff(
             current=[schema("tickets",
                             fields=[field("title"), field("notes")])],
@@ -592,11 +593,11 @@ class TestEmptyTableDowngrade:
                 from termin_runtime.providers.storage_contract import Page
                 return Page(records=(), next_cursor=None, estimated_total=0)
 
-        import asyncio
-        downgraded = asyncio.run(downgrade_for_empty_tables(diff, EmptyProvider()))
+        downgraded = await downgrade_for_empty_tables(diff, EmptyProvider())
         assert downgraded.overall_classification in ("safe", "low")
 
-    def test_non_empty_table_stays_blocked(self):
+    @pytest.mark.asyncio
+    async def test_non_empty_table_stays_blocked(self):
         diff = compute_migration_diff(
             current=[schema("tickets",
                             fields=[field("title"), field("notes")])],
@@ -610,6 +611,5 @@ class TestEmptyTableDowngrade:
                     records=({"id": 1, "title": "x", "notes": "y"},),
                     next_cursor=None, estimated_total=1)
 
-        import asyncio
-        diff = asyncio.run(downgrade_for_empty_tables(diff, NonEmptyProvider()))
+        diff = await downgrade_for_empty_tables(diff, NonEmptyProvider())
         assert diff.overall_classification == "blocked"

@@ -294,9 +294,26 @@ def _playwright_available():
 
 @pytest.fixture(scope="session")
 def _chromium():
-    """Launch a headless Chromium browser once per session."""
+    """Launch a headless Chromium browser once per session.
+
+    Skips early when the adapter can't be reached by a browser — the
+    in-process reference adapter returns ``http://testserver`` which
+    Chromium can't navigate to. Without this gate, Playwright's
+    sync_playwright() spins up its driver subprocess + asyncio loop
+    even though every dependent test will skip via
+    ``_require_served_url``. The lingering loop then collides with
+    pytest-asyncio's Runner.run() for any async test that runs later
+    in the session ("Runner.run() cannot be called from a running
+    event loop"), poisoning ~23 migration tests.
+    """
     if not _playwright_available():
         pytest.skip("playwright not installed")
+    adapter_name = os.environ.get("TERMIN_ADAPTER", "reference").lower()
+    if adapter_name in ("reference", "template", ""):
+        pytest.skip(
+            "browser tests require TERMIN_ADAPTER=served-reference "
+            "(or another adapter that serves on a real port); "
+            "in-process adapters can't be reached by Chromium")
     from playwright.sync_api import sync_playwright
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)

@@ -107,11 +107,10 @@ class UvicornTestServer:
 def _make_server(app_name: str) -> UvicornTestServer:
     """Build and start a UvicornTestServer for the given fixture app.
 
-    Each server gets its own tempfile-backed SQLite db so that
-    session-scoped fixtures for different apps don't collide on the
-    default `./app.db` — that collision otherwise raises
-    MigrationBlockedError when one app's schema doesn't match the
-    next app's content shape.
+    The runtime derives a per-app default DB filename from the IR
+    (``<slug>__<id8>.db``) so multiple session-scoped servers in the
+    same cwd never collide. We still hand a tempfile path so the
+    conformance suite leaves no .db files in the repo.
     """
     import tempfile
     ir_json, seed_data = _load_fixture(app_name)

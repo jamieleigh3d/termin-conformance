@@ -2,6 +2,44 @@
 
 ## Unreleased — v0.9 in progress
 
+### 24 pre-existing failures squashed (2026-04-29 late evening)
+
+Suite went from 891 passing / 24 failing to **915 passing / 0 failing**.
+
+**Root cause #1 — Playwright session fixture poisoned the asyncio
+runner for migration tests.** `_chromium` (session-scoped) called
+`sync_playwright().__enter__()` whenever the Playwright PIP package was
+installed, even when the active adapter was `reference` (in-process,
+unreachable by a real browser). The dependent tests then skipped via
+`_require_served_url`, but the playwright driver subprocess + its
+asyncio loop stayed alive for the rest of the session. pytest-asyncio
+1.x's `Runner.run()` then raised "Runner.run() cannot be called from a
+running event loop" for every async test that ran later in collection
+order — 23 migration tests across `test_v09_migration_apply.py`,
+`test_v09_migration_classifier.py`, `test_v09_migration_e2e.py`, and
+`test_v09_migration_fault_injection.py`. Fix in `conftest.py`: gate
+`_chromium` on `TERMIN_ADAPTER` and skip before launching sync_playwright
+when the adapter is `reference`/`template`/unset. Browser tests still
+run normally under `served-reference`.
+
+**Root cause #2 — `?offset=` test asserted retired v0.8 behavior.**
+v0.9 removed `?offset=` in favor of keyset cursors (BRD §6.2); the
+runtime now rejects the parameter with HTTP 400 and migration guidance.
+`test_v08_pagination_filter_sort.py::test_offset_skips_records` was
+asserting the old skip semantics — it pre-dated the offset removal.
+Replaced with `test_offset_param_rejected_with_v09_guidance` asserting
+the migration contract (status 400 + `cursor` mentioned in the error
+message). The `test_negative_offset_rejected` neighbor still passes
+(any offset returns 400 in v0.9).
+
+**Bonus — sync `asyncio.run()` calls in classifier converted to
+`@pytest.mark.asyncio`.** Four sync test methods in
+`test_v09_migration_classifier.py` called `asyncio.run(...)` directly.
+Not the cause of the 24 failures, but identified during root-cause
+hunt as a fragile pattern that would break the same way once any
+caller of those tests started managing its own loop. Converted to
+async-marked tests using the runner pytest-asyncio already provides.
+
 ### Pre-Phase 7 cleanup (2026-04-29 evening)
 
 Fixture regen + adapter / test-infra fixes paired with the compiler-side
