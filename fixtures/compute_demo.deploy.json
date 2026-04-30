@@ -1,43 +1,55 @@
 {
-  "version": "0.1.0",
-  "channels": {
-    "order webhook": {
-      "url": "https://TODO-configure-order_webhook.example.com/api",
-      "protocol": "http",
-      "auth": {
-        "type": "bearer",
-        "token": "${ORDER_WEBHOOK_TOKEN}"
+  "version": "0.9.0",
+  "bindings": {
+    "identity": {
+      "provider": "stub",
+      "config": {}
+    },
+    "storage": {
+      "provider": "sqlite",
+      "config": {}
+    },
+    "presentation": {
+      "provider": "default",
+      "config": {}
+    },
+    "compute": {},
+    "channels": {
+      "order webhook": {
+        "provider": "stub",
+        "config": {
+          "url": "https://TODO-configure-order_webhook.example.com/api",
+          "protocol": "http",
+          "auth": {
+            "type": "bearer",
+            "token": "${ORDER_WEBHOOK_TOKEN}"
+          },
+          "timeout_ms": 30000,
+          "retry": {
+            "max_attempts": 3,
+            "backoff_ms": 1000
+          }
+        }
       },
-      "timeout_ms": 30000,
-      "retry": {
-        "max_attempts": 3,
-        "backoff_ms": 1000
+      "order updates stream": {
+        "provider": "stub",
+        "config": {
+          "target": "https://TODO-configure-order_updates_stream.example.com/hook",
+          "timeout_ms": 10000,
+          "auth": {
+            "type": "bearer",
+            "token": "${ORDER_UPDATES_STREAM_TOKEN}"
+          }
+        }
+      },
+      "order notifications": {
+        "provider": "stub",
+        "config": {
+          "workspace_token_ref": "${ORDER_NOTIFICATIONS_TOKEN}",
+          "target": "TODO-configure-order_notifications-channel"
+        }
       }
-    },
-    "order updates stream": {
-      "url": "https://TODO-configure-order_updates_stream.example.com/api",
-      "protocol": "websocket",
-      "auth": {
-        "type": "bearer",
-        "token": "${ORDER_UPDATES_STREAM_TOKEN}"
-      },
-      "reconnect": true,
-      "heartbeat_ms": 30000
-    },
-    "order notifications": {
-      "url": "https://TODO-configure-order_notifications.example.com/api",
-      "protocol": "websocket",
-      "auth": {
-        "type": "bearer",
-        "token": "${ORDER_NOTIFICATIONS_TOKEN}"
-      },
-      "reconnect": true,
-      "heartbeat_ms": 30000
     }
-  },
-  "identity": {
-    "provider": "stub",
-    "config": {}
   },
   "runtime": {}
 }

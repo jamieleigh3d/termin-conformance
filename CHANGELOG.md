@@ -2,6 +2,43 @@
 
 ## Unreleased — v0.9 in progress
 
+### Pre-Phase 7 cleanup (2026-04-29 evening)
+
+Fixture regen + adapter / test-infra fixes paired with the compiler-side
+deploy-template fix.
+
+**Fixture regen** — every `fixtures/*.termin.pkg`, `fixtures-cascade/*.termin.pkg`,
+and `fixtures/*.deploy.json` regenerated via the compiler's
+`util/release.py`. Deploy configs now consistently emit the v0.9 shape
+on every channel (`provider`/`config` envelope), including the channels
+that don't declare `Provider is "X"` in source — those previously fell
+through the generator's legacy fallback path and produced flat
+URL/protocol/auth blobs the v0.9 strict validator rejected. The
+generator fix lives in `termin-compiler/termin/cli.py`.
+
+**Adapter — `deploy_with_agent_mock` patches v0.9 deploy shape** —
+`adapter_reference.py` was patching `deploy_config["ai_provider"]` (the
+retired v0.8 top-level shape). v0.9 routes per-compute provider
+configuration through `bindings.compute.<name>.config`. The adapter now
+overwrites `bindings.compute.*.api_key = "mock"` (and `model = "mock"`)
+on every LLM/agent compute binding, plus synthesizes a full v0.9 deploy
+config when no `<app>.deploy.json` exists. Without this, the
+`${ANTHROPIC_API_KEY}` placeholder remained, the provider's
+`is_configured()` returned False, and `compute_runner` skipped every
+mocked invocation with "no provider bound, skipped".
+
+**`tests/test_behavioral_ws.py::_make_server` gives each app a unique
+DB** — the helper called `create_termin_app(...)` without `db_path=`,
+which meant all three session-scoped fixtures
+(`agent_simple_ws_server`, `channel_simple_ws_server`,
+`warehouse_ws_server`) shared the default `./app.db`. Whichever fixture
+ran first owned the schema; the other two then hit `MigrationBlockedError`
+on startup because their IRs declared different content types. Each
+helper now mints a `tempfile.mktemp(suffix=f"_{app_name}_ws.db")`. The
+shared `app.db` was masked in prior runs by happening to contain a
+schema compatible with whichever app went first; the regenerated
+fixtures put more apps through the helper and surfaced the latent bug.
+
 ### Phase 5: presentation provider conformance pack (2026-04-29)
 
 **New test pack:** `tests/test_v09_presentation_provider.py` (33 tests)

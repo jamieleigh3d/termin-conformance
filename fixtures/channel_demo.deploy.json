@@ -1,74 +1,87 @@
 {
-  "version": "0.1.0",
-  "channels": {
-    "github-webhooks": {
-      "url": "https://TODO-configure-github_webhooks.example.com/api",
-      "protocol": "http",
-      "auth": {
-        "type": "bearer",
-        "token": "${GITHUB_WEBHOOKS_TOKEN}"
-      },
-      "timeout_ms": 30000,
-      "retry": {
-        "max_attempts": 3,
-        "backoff_ms": 1000
+  "version": "0.9.0",
+  "bindings": {
+    "identity": {
+      "provider": "stub",
+      "config": {}
+    },
+    "storage": {
+      "provider": "sqlite",
+      "config": {}
+    },
+    "presentation": {
+      "provider": "default",
+      "config": {}
+    },
+    "compute": {
+      "auto_mitigate": {
+        "provider": "anthropic",
+        "config": {
+          "model": "claude-haiku-4-5-20251001",
+          "api_key": "${ANTHROPIC_API_KEY}"
+        }
       }
     },
-    "monitoring-feed": {
-      "url": "https://TODO-configure-monitoring_feed.example.com/api",
-      "protocol": "websocket",
-      "auth": {
-        "type": "bearer",
-        "token": "${MONITORING_FEED_TOKEN}"
+    "channels": {
+      "github-webhooks": {
+        "provider": "stub",
+        "config": {
+          "url": "https://TODO-configure-github_webhooks.example.com/api",
+          "protocol": "http",
+          "auth": {
+            "type": "bearer",
+            "token": "${GITHUB_WEBHOOKS_TOKEN}"
+          },
+          "timeout_ms": 30000,
+          "retry": {
+            "max_attempts": 3,
+            "backoff_ms": 1000
+          }
+        }
       },
-      "reconnect": true,
-      "heartbeat_ms": 30000
-    },
-    "pagerduty": {
-      "url": "https://TODO-configure-pagerduty.example.com/api",
-      "protocol": "http",
-      "auth": {
-        "type": "bearer",
-        "token": "${PAGERDUTY_TOKEN}"
+      "monitoring-feed": {
+        "provider": "stub",
+        "config": {
+          "url": "https://TODO-configure-monitoring_feed.example.com/api",
+          "protocol": "websocket",
+          "auth": {
+            "type": "bearer",
+            "token": "${MONITORING_FEED_TOKEN}"
+          },
+          "reconnect": true,
+          "heartbeat_ms": 30000
+        }
       },
-      "timeout_ms": 30000,
-      "retry": {
-        "max_attempts": 3,
-        "backoff_ms": 1000
+      "pagerduty": {
+        "provider": "stub",
+        "config": {
+          "target": "https://TODO-configure-pagerduty.example.com/hook",
+          "timeout_ms": 10000,
+          "auth": {
+            "type": "bearer",
+            "token": "${PAGERDUTY_TOKEN}"
+          }
+        }
+      },
+      "cloud-provider": {
+        "provider": "stub",
+        "config": {
+          "target": "https://TODO-configure-cloud_provider.example.com/hook",
+          "timeout_ms": 10000,
+          "auth": {
+            "type": "bearer",
+            "token": "${CLOUD_PROVIDER_TOKEN}"
+          }
+        }
+      },
+      "slack": {
+        "provider": "stub",
+        "config": {
+          "workspace_token_ref": "${SLACK_TOKEN}",
+          "target": "TODO-configure-slack-channel"
+        }
       }
-    },
-    "cloud-provider": {
-      "url": "https://TODO-configure-cloud_provider.example.com/api",
-      "protocol": "http",
-      "auth": {
-        "type": "bearer",
-        "token": "${CLOUD_PROVIDER_TOKEN}"
-      },
-      "timeout_ms": 30000,
-      "retry": {
-        "max_attempts": 3,
-        "backoff_ms": 1000
-      }
-    },
-    "slack": {
-      "url": "https://TODO-configure-slack.example.com/api",
-      "protocol": "websocket",
-      "auth": {
-        "type": "bearer",
-        "token": "${SLACK_TOKEN}"
-      },
-      "reconnect": true,
-      "heartbeat_ms": 30000
     }
   },
-  "identity": {
-    "provider": "stub",
-    "config": {}
-  },
-  "runtime": {},
-  "ai_provider": {
-    "service": "anthropic",
-    "model": "claude-haiku-4-5-20251001",
-    "api_key": "${ANTHROPIC_API_KEY}"
-  }
+  "runtime": {}
 }

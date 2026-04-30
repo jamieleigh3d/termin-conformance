@@ -1,14 +1,28 @@
 {
-  "version": "0.1.0",
-  "channels": {},
-  "identity": {
-    "provider": "stub",
-    "config": {}
+  "version": "0.9.0",
+  "bindings": {
+    "identity": {
+      "provider": "stub",
+      "config": {}
+    },
+    "storage": {
+      "provider": "sqlite",
+      "config": {}
+    },
+    "presentation": {
+      "provider": "default",
+      "config": {}
+    },
+    "compute": {
+      "complete": {
+        "provider": "anthropic",
+        "config": {
+          "model": "claude-haiku-4-5-20251001",
+          "api_key": "${ANTHROPIC_API_KEY}"
+        }
+      }
+    },
+    "channels": {}
   },
-  "runtime": {},
-  "ai_provider": {
-    "service": "anthropic",
-    "model": "claude-haiku-4-5-20251001",
-    "api_key": "${ANTHROPIC_API_KEY}"
-  }
+  "runtime": {}
 }

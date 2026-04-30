@@ -1,38 +1,54 @@
 {
-  "version": "0.1.0",
-  "channels": {
-    "security-tools": {
-      "url": "https://TODO-configure-security_tools.example.com/api",
-      "protocol": "http",
-      "auth": {
-        "type": "bearer",
-        "token": "${SECURITY_TOOLS_TOKEN}"
+  "version": "0.9.0",
+  "bindings": {
+    "identity": {
+      "provider": "stub",
+      "config": {}
+    },
+    "storage": {
+      "provider": "sqlite",
+      "config": {}
+    },
+    "presentation": {
+      "provider": "default",
+      "config": {}
+    },
+    "compute": {
+      "scanner": {
+        "provider": "anthropic",
+        "config": {
+          "model": "claude-haiku-4-5-20251001",
+          "api_key": "${ANTHROPIC_API_KEY}"
+        }
       },
-      "timeout_ms": 30000,
-      "retry": {
-        "max_attempts": 3,
-        "backoff_ms": 1000
+      "remediator": {
+        "provider": "anthropic",
+        "config": {
+          "model": "claude-haiku-4-5-20251001",
+          "api_key": "${ANTHROPIC_API_KEY}"
+        }
       }
     },
-    "slack": {
-      "url": "https://TODO-configure-slack.example.com/api",
-      "protocol": "websocket",
-      "auth": {
-        "type": "bearer",
-        "token": "${SLACK_TOKEN}"
+    "channels": {
+      "security-tools": {
+        "provider": "stub",
+        "config": {
+          "target": "https://TODO-configure-security_tools.example.com/hook",
+          "timeout_ms": 10000,
+          "auth": {
+            "type": "bearer",
+            "token": "${SECURITY_TOOLS_TOKEN}"
+          }
+        }
       },
-      "reconnect": true,
-      "heartbeat_ms": 30000
+      "slack": {
+        "provider": "stub",
+        "config": {
+          "workspace_token_ref": "${SLACK_TOKEN}",
+          "target": "TODO-configure-slack-channel"
+        }
+      }
     }
   },
-  "identity": {
-    "provider": "oidc",
-    "config": {}
-  },
-  "runtime": {},
-  "ai_provider": {
-    "service": "anthropic",
-    "model": "claude-haiku-4-5-20251001",
-    "api_key": "${ANTHROPIC_API_KEY}"
-  }
+  "runtime": {}
 }

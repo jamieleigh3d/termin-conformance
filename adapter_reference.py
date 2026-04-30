@@ -128,11 +128,46 @@ class ReferenceAdapter(RuntimeAdapter):
                     except (KeyError, json.JSONDecodeError):
                         pass
 
-        deploy_config = {"ai_provider": {"service": "anthropic", "model": "mock", "api_key": "mock"}}
+        # Mock deploy config — v0.9 shape so the strict deploy-config
+        # validator and per-compute provider binding both accept it.
+        # `api_key="mock"` is a literal (no `${` placeholder) so the
+        # provider's is_configured() check passes, the patched
+        # AIProvider.startup runs, and the patched agent_loop is
+        # callable from compute_runner.
+        def _mock_compute_bindings(ir_dict):
+            mock = {}
+            for c in ir_dict.get("computes", []):
+                if (c.get("provider") or "") not in ("llm", "ai-agent"):
+                    continue
+                mock[c["name"]["snake"]] = {
+                    "provider": "anthropic",
+                    "config": {"model": "mock", "api_key": "mock"},
+                }
+            return mock
+
+        deploy_config = {
+            "version": "0.9.0",
+            "bindings": {
+                "identity": {"provider": "stub", "config": {}},
+                "storage": {"provider": "sqlite", "config": {}},
+                "presentation": {"provider": "default", "config": {}},
+                "compute": _mock_compute_bindings(ir),
+                "channels": {},
+            },
+            "runtime": {},
+        }
         deploy_path = fixture_path.parent / f"{app_name}.deploy.json"
         if deploy_path.exists():
             deploy_config = json.loads(deploy_path.read_text(encoding="utf-8"))
-            deploy_config["ai_provider"] = {"service": "anthropic", "model": "mock", "api_key": "mock"}
+            # Patch every LLM/agent compute binding's api_key so the
+            # mock provider becomes is_configured.
+            bindings = deploy_config.get("bindings", {})
+            compute = bindings.get("compute", {}) if isinstance(bindings, dict) else {}
+            for entry in compute.values():
+                if isinstance(entry, dict):
+                    cfg = entry.setdefault("config", {})
+                    cfg["model"] = "mock"
+                    cfg["api_key"] = "mock"
 
         # Shared result collector
         tool_results = []

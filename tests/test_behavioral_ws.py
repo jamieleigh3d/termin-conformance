@@ -105,11 +105,21 @@ class UvicornTestServer:
 
 
 def _make_server(app_name: str) -> UvicornTestServer:
-    """Build and start a UvicornTestServer for the given fixture app."""
+    """Build and start a UvicornTestServer for the given fixture app.
+
+    Each server gets its own tempfile-backed SQLite db so that
+    session-scoped fixtures for different apps don't collide on the
+    default `./app.db` — that collision otherwise raises
+    MigrationBlockedError when one app's schema doesn't match the
+    next app's content shape.
+    """
+    import tempfile
     ir_json, seed_data = _load_fixture(app_name)
     deploy_config = _load_deploy_config(app_name)
+    db_path = tempfile.mktemp(suffix=f"_{app_name}_ws.db")
     app = create_termin_app(
         ir_json, seed_data=seed_data,
+        db_path=db_path,
         strict_channels=False, deploy_config=deploy_config,
     )
     server = UvicornTestServer(app)
