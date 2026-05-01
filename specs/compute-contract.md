@@ -531,13 +531,24 @@ Service-mode behavior:
 
 ### 7.1 Audit invariants under Acts-as
 
-For **delegate-mode** invocations:
-- `invoked_by_principal_id` = the actual principal who triggered the compute (e.g., the human user whose `messages.created` event ran the trigger).
-- `on_behalf_of_principal_id` = the same as `invoked_by_principal_id`. Delegate mode means the agent acts as the upstream principal; there is no further hop in v0.9, so the two columns mirror each other.
+`on_behalf_of_principal_id` is the **chain target** — it answers
+"who is invoked_by acting for?" and is populated only when the row
+represents an X-acting-for-Y chain. The runtime stamps it from
+the Principal's own `on_behalf_of` attribute when set; for a
+principal acting as themselves the column is empty.
+
+For **delegate-mode agent** invocations (an agent acting on a human's behalf):
+- `invoked_by_principal_id` = the agent's id (e.g., `agent:moderation-bot`).
+- `on_behalf_of_principal_id` = the upstream human principal's id (e.g., `okta:user-42`).
+- The two columns DIFFER, capturing the X-acting-for-Y chain.
+
+For **direct (non-agent) human or anonymous** invocations:
+- `invoked_by_principal_id` = the human's id (or synthesized anonymous, see below).
+- `on_behalf_of_principal_id` = empty (no chain). Some implementations may mirror invoked_by; both forms are conformant.
 
 For **service-mode** invocations:
 - `invoked_by_principal_id` = the synthesized service principal.
-- `on_behalf_of_principal_id` = empty/null.
+- `on_behalf_of_principal_id` = empty (the service principal has no upstream chain).
 
 #### Anonymous principals
 

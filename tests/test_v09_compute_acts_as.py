@@ -169,16 +169,20 @@ class TestDelegateModeStamping:
         # Both columns are present.
         assert "invoked_by_principal_id" in row
         assert "on_behalf_of_principal_id" in row
-        # In delegate mode, on_behalf_of mirrors invoked_by (no
-        # service principal substitution).
-        assert (
-            row.get("on_behalf_of_principal_id", "") ==
-            row.get("invoked_by_principal_id", "")
-        ), (
-            f"delegate mode: invoked_by and on_behalf_of must match "
-            f"(both are the actual caller's principal); got "
-            f"invoked_by={row.get('invoked_by_principal_id')!r}, "
-            f"on_behalf_of={row.get('on_behalf_of_principal_id')!r}"
+        # Per spec §7.1: on_behalf_of is the *chain target*. For a
+        # principal acting as themselves (delegate-mode human or
+        # anonymous, no agent in the chain), on_behalf_of MUST
+        # NOT name a different principal than invoked_by — it is
+        # either empty (no chain) or equal to invoked_by (mirror,
+        # an alternate spelling of no-chain). Either form is
+        # conformant; what matters is the absence of an
+        # X-acting-for-Y divergence.
+        invoked_by = row.get("invoked_by_principal_id", "")
+        on_behalf_of = row.get("on_behalf_of_principal_id", "")
+        assert on_behalf_of in ("", invoked_by), (
+            f"delegate mode (no agent chain): on_behalf_of must be "
+            f"empty or mirror invoked_by; got "
+            f"invoked_by={invoked_by!r}, on_behalf_of={on_behalf_of!r}"
         )
 
     def test_anonymous_principal_synthesizes_typed_id(self, delegate_mode_app):
