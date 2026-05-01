@@ -263,24 +263,17 @@ class TestLlmAgentExtras:
 
 class TestCelAuditRoundTrip:
     """Per compute-contract.md §5.2 — when a default-CEL compute
-    invokes successfully, the runtime writes an audit row with the
-    base shape populated. We trigger via the manual endpoint and
-    read back via the audit Content's CRUD surface.
+    invokes successfully via the manual ``/trigger`` endpoint, the
+    runtime MUST write an audit row with the base shape populated.
 
-    KNOWN reference-runtime divergence (flagged 2026-04-30):
-    the reference runtime emits ``[Termin] Compute 'calculate
-    order total': provider 'None' not supported for event
-    triggers`` on the manual-trigger code path for default-CEL
-    computes and skips writing the audit row even though the
-    invocation envelope reports ``status: completed``. The spec
-    (§5.2) requires the audit row; the runtime currently writes
-    only when present. We test the WEAKER property here ("if any
-    audit row exists, it has the base shape") so this file passes
-    on the reference adapter; the missing-row case is tracked as
-    an open gap to fix in the reference runtime.
+    v0.9.1 reference runtime added the ``_execute_cel_compute``
+    helper that runs the CEL body and writes the audit row from
+    the manual-trigger path. Previously this branch printed
+    ``provider 'None' not supported for event triggers`` and
+    silently dropped the audit, leaving §5.2 unsatisfied.
     """
 
-    def test_calculate_order_total_audit_row_shape_when_present(
+    def test_calculate_order_total_audit_row_shape(
         self, compute_demo,
     ):
         compute_demo.set_role("order manager")
@@ -296,7 +289,7 @@ class TestCelAuditRoundTrip:
             json={"record": r_create.json(), "content_name": "orders"},
         )
         assert r_trig.status_code == 200, r_trig.text
-        # Allow any audit write to land.
+        # Allow the audit write to land.
         time.sleep(0.5)
 
         r_audit = compute_demo.get(
@@ -304,17 +297,17 @@ class TestCelAuditRoundTrip:
         assert r_audit.status_code == 200, r_audit.text
         rows = r_audit.json()
         assert isinstance(rows, list)
-        if not rows:
-            pytest.skip(
-                "Reference runtime currently skips audit row for "
-                "default-CEL computes triggered manually — see test "
-                "docstring. Spec (§5.2) requires the row; flagged "
-                "as a known divergence."
-            )
-        # If any row was written, base-shape sanity-check it.
+        # v0.9.1: the manual-trigger path MUST produce an audit row.
+        assert rows, (
+            "manual trigger of a default-CEL compute MUST write an "
+            "audit row per spec §5.2 — empty list indicates the "
+            "runtime is skipping audit on the manual path"
+        )
         row = rows[-1]
         assert row.get("compute_name")
         assert row.get("latency_ms") is not None
         assert row.get("outcome") in (
             "success", "error", "refused", "timeout", "cancelled",
         )
+        # Trigger MUST be the manual marker, not an event trigger.
+        assert row.get("trigger") == "manual"

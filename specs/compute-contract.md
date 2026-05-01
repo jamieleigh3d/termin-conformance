@@ -329,7 +329,7 @@ Audit records are queryable through the standard CRUD surface:
 
 ### 5.2 Required fields — base shape (every contract with audit_level != none)
 
-These columns appear on the audit Content for **every** contract — `default-CEL`, `llm`, and `ai-agent`:
+These columns appear on the audit Content for **every** contract — `default-CEL`, `llm`, and `ai-agent`. **An audit row MUST be written for every invocation regardless of trigger path** — including manual `POST /api/v1/compute/<name>/trigger` calls for `default-CEL` computes. v0.9.0 reference runtime had a known divergence where the manual-trigger path silently dropped audit rows for default-CEL; v0.9.1 fixes this in `termin-server`'s compute_runner so every trigger path produces an audit row.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -345,9 +345,9 @@ These columns appear on the audit Content for **every** contract — `default-CE
 | `total_output_tokens` | number | Provider-reported. |
 | `trace` | text | JSON blob of the full reasoning + tool sequence (legacy v0.8 shape; preserved). |
 | `error_message` | text | Free-form when `outcome="error"`. |
-| `invoked_by_principal_id` | text | The actual caller's principal id. |
-| `invoked_by_display_name` | text | Caller's display name (denormalized for audit-time stability). |
-| `on_behalf_of_principal_id` | text | Delegate-mode chain target; null/empty for service mode. |
+| `invoked_by_principal_id` | text | The actual caller's principal id. Anonymous callers stamp `anonymous:<short>` per §7.1; system-triggered runs (no caller) stamp empty string. |
+| `invoked_by_display_name` | text | Caller's display name (denormalized for audit-time stability). For anonymous callers the runtime fills `Anonymous` if not otherwise provided. |
+| `on_behalf_of_principal_id` | text | Delegate-mode mirrors `invoked_by_principal_id`; service mode stamps the upstream caller's id while invoked_by carries the synthesized service principal. |
 
 ### 5.3 Required fields — LLM/agent extension (BRD §6.3.4)
 
@@ -531,19 +531,35 @@ Service-mode behavior:
 
 ### 7.1 Audit invariants under Acts-as
 
-For delegate-mode invocations:
+For **delegate-mode** invocations:
 - `invoked_by_principal_id` = the actual principal who triggered the compute (e.g., the human user whose `messages.created` event ran the trigger).
-- `on_behalf_of_principal_id` = empty/null.
+- `on_behalf_of_principal_id` = the same as `invoked_by_principal_id`. Delegate mode means the agent acts as the upstream principal; there is no further hop in v0.9, so the two columns mirror each other.
 
-Wait — the BRD says delegate mode means the agent has no roles of its own; the principal whose scopes are checked is `on_behalf_of`. The reference runtime stamps:
-- `invoked_by_principal_id` = the runtime's own caller-principal in delegate mode (the user who triggered the event).
-- `on_behalf_of_principal_id` = same as `invoked_by` (delegate mode chain has no further hop in v0.9).
-
-For service-mode invocations:
+For **service-mode** invocations:
 - `invoked_by_principal_id` = the synthesized service principal.
 - `on_behalf_of_principal_id` = empty/null.
 
-The conformance pack tests both shapes by examining audit records emitted from a delegate-mode chatbot (one row per user-triggered invocation, principal id matches the user) and a service-mode scanner (synthesized principal, no on_behalf_of).
+#### Anonymous principals
+
+When the upstream principal is anonymous (the caller had no
+authenticated identity, or the app's only declared role is
+`anonymous`), the runtime MUST synthesize a typed identifier of the
+form `anonymous:<short>` rather than emitting an empty string.
+The prefix `anonymous:` is the auditable type marker — operators
+filter audit logs with `invoked_by_principal_id LIKE 'anonymous:%'`
+to find anonymous-caller activity. The suffix is a short opaque
+token derived from the invocation_id (first 8 hex chars after
+stripping dashes), giving each anonymous audit row a distinct id
+within the trail without claiming cross-row correlation.
+
+This applies equally to `invoked_by_principal_id` and
+`on_behalf_of_principal_id` (in delegate mode where they mirror).
+A truly system-triggered run with no upstream principal at all
+(scheduler hooks, startup tasks) MAY emit empty-string ids — that
+case is distinguishable from anonymous because there is no caller,
+not because the caller was unauthenticated.
+
+The conformance pack tests both shapes by examining audit records emitted from a delegate-mode chatbot (one row per user-triggered invocation, principal id matches the user OR the synthesized anonymous form) and a service-mode scanner (synthesized service principal, no on_behalf_of).
 
 ### 7.2 Tool-call principal
 

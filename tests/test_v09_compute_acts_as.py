@@ -143,21 +143,12 @@ class TestDelegateModeStamping:
     the audit's invoked_by_principal_id reflects the principal that
     triggered the compute (here: the user who created the message).
 
-    For anonymous-only apps (agent_chatbot's only role is `anonymous`),
-    the runtime may legitimately stamp an empty principal id — there
-    is no authenticated subject. The conformance bar here is
-    structural: the audit row contains the principal-id columns
-    (so consumers can rely on the schema) and `on_behalf_of` is
-    consistent with delegate mode (it must NOT be a service-mode
-    synthesized id).
-
-    KNOWN reference-runtime divergence (flagged 2026-04-30):
-    in delegate mode for anonymous principals, the reference
-    runtime stamps both invoked_by_principal_id and
-    on_behalf_of_principal_id as empty strings. The spec (§7.1)
-    is silent on the anonymous case; this test pins the structural
-    invariant and leaves the populated-id case to apps with a
-    non-anonymous identity.
+    Anonymous principals get a synthesized ``anonymous:<short>`` id
+    rather than an empty string — anonymous is a *type*, not a
+    null. Every audit row carries an identifiable principal value so
+    operators can filter ``invoked_by_principal_id LIKE 'anonymous:%'``
+    to find anonymous-caller activity. v0.9.1 reference runtime
+    implements this synthesis in ``write_audit_trace``.
     """
 
     def test_audit_principal_columns_present(self, delegate_mode_app):
@@ -175,7 +166,7 @@ class TestDelegateModeStamping:
         rows = ra.json()
         assert rows, "expected at least one audit row after triggering reply"
         row = rows[-1]
-        # Both columns are present (even if empty for anonymous).
+        # Both columns are present.
         assert "invoked_by_principal_id" in row
         assert "on_behalf_of_principal_id" in row
         # In delegate mode, on_behalf_of mirrors invoked_by (no
@@ -189,3 +180,43 @@ class TestDelegateModeStamping:
             f"invoked_by={row.get('invoked_by_principal_id')!r}, "
             f"on_behalf_of={row.get('on_behalf_of_principal_id')!r}"
         )
+
+    def test_anonymous_principal_synthesizes_typed_id(self, delegate_mode_app):
+        """v0.9.1: when the upstream caller is anonymous (or there is
+        no authenticated subject), the audit row's
+        invoked_by_principal_id MUST be a synthesized
+        ``anonymous:<short>`` value rather than an empty string.
+
+        Operators rely on the prefix to filter audit logs for
+        anonymous-caller activity; the suffix gives uniqueness within
+        the audit trail so anonymous rows don't collide on a single
+        opaque value."""
+        session, _info, _results = delegate_mode_app
+        session.set_role("anonymous", user_name="AnonAuditTester")
+        r = session.post("/api/v1/messages",
+                         json={"role": "user", "body": "anonymous synth check"})
+        assert r.status_code == 201
+        time.sleep(_WAIT)
+
+        ra = session.get("/api/v1/compute_audit_log_reply")
+        if ra.status_code == 403:
+            pytest.skip("audit content not visible to the test role")
+        assert ra.status_code == 200, ra.text
+        rows = ra.json()
+        assert rows, "expected at least one audit row"
+        row = rows[-1]
+        invoked_by = row.get("invoked_by_principal_id", "")
+        # Either a real authenticated id (some adapter setups) OR
+        # the synthesized anonymous form. Empty string is no longer
+        # conformant in v0.9.1.
+        assert invoked_by, (
+            "invoked_by_principal_id is empty — anonymous principals "
+            "must synthesize a typed id per §7.1"
+        )
+        if invoked_by.startswith("anonymous:"):
+            # Anonymous form: prefix + non-empty suffix.
+            suffix = invoked_by.split(":", 1)[1]
+            assert suffix and suffix != "anonymous", (
+                f"anonymous prefix must carry a non-empty suffix; "
+                f"got {invoked_by!r}"
+            )
