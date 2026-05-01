@@ -8,20 +8,25 @@
 
 Companion to `specs/channel-contract.md` §5.
 
-The default failure mode is `log-and-drop`. Every conforming runtime
-MUST satisfy this end-to-end:
+Three failure modes:
 
-  - A provider whose send() raises MUST NOT cause channel_send() to
-    raise.
-  - The return shape is {"ok": False, "outcome": "failed", "channel": <display>}.
-  - The error counter for that channel increments by one.
+  - `log-and-drop` (default) — provider exceptions are caught;
+    channel_send() returns {"ok": False, "outcome": "failed",
+    "channel": <display>}; no exception propagates. End-to-end
+    conformance, every runtime MUST pass §5.2.
 
-The other two modes (`surface-as-error`, `queue-and-retry-forever`)
-are conditional in v0.9.1 — a runtime that has not implemented them
-MUST cleanly fall back to log-and-drop. The test pack records both
-the contract for runtimes that do implement them and the fallback
-posture for runtimes that don't, so v0.9.0 and future runtimes can
-both pass.
+  - `surface-as-error` — provider exceptions re-raise as
+    ChannelError to the caller (original chained via __cause__).
+    **Deterministic conformance** as of v0.9.1: a runtime that
+    catches and swallows in this mode is non-conforming. §5.3.
+
+  - `queue-and-retry` — grammar-accepted, IR-recorded, full
+    implementation deferred to v0.10 (exponential backoff +
+    dead-letter after configurable max-retry-hours, 24h cap).
+    The semantic test is **SKIPPED** in v0.9.1 with a marker
+    pointing at the v0.10 design. v0.9.x runtimes that fall
+    back to log-and-drop in this mode are conformant; the
+    fallback path is asserted in TestQueueAndRetryFallback. §5.4.
 
 These are dispatcher-level tests against synthetic IR; they don't go
 through the conformance adapter because the failure-mode contract is
@@ -170,21 +175,19 @@ class TestLogAndDropDefault:
         assert "outcome" not in result or result.get("outcome") != "failed"
 
 
-# ── §5.3: surface-as-error and queue-and-retry-forever ───────────
+# ── §5.3: surface-as-error (deterministic) ───────────────────────
 
 
 class TestSurfaceAsError:
     """Per channel-contract.md §5.3 — surface-as-error makes provider
-    exceptions propagate. Conformance is conditional: a runtime that
-    has not implemented this mode MUST fall back to log-and-drop and
-    the test SKIPs accordingly."""
+    exceptions propagate as ChannelError. Deterministic in v0.9.1:
+    a runtime that catches and swallows in this mode is non-conforming.
+    The original exception MUST be chained via __cause__ so the audit
+    trail preserves the upstream error message."""
 
-    def test_surface_as_error_either_propagates_or_falls_back(self):
-        """A runtime is conforming iff one of the two postures holds:
-            (a) the exception propagates (mode implemented), or
-            (b) it falls back to log-and-drop (mode not yet implemented).
-        Anything else — silent swallowing without a failed-shaped
-        return, or some third behavior — is non-conforming."""
+    def test_provider_exception_re_raises_as_channel_error(self):
+        from termin_server.channel_config import ChannelError
+
         ir = _ir(_ch("alerts", "webhook", failure_mode="surface-as-error"))
         deploy = _deploy("alerts", _binding())
         d = ChannelDispatcher(ir, deploy, _registry())
@@ -192,31 +195,72 @@ class TestSurfaceAsError:
 
         class BoomProvider:
             async def send(self, body=None, headers=None):
-                raise RuntimeError("simulated")
+                raise RuntimeError("simulated upstream failure")
 
         d._channel_providers["alerts"] = BoomProvider()
-        try:
-            result = asyncio.run(d.channel_send("alerts", {"x": 1}))
-        except Exception:
-            # Posture (a): mode implemented; propagation is the
-            # documented behavior.
-            return
-        # Posture (b): fallback. Result must be the log-and-drop
-        # shape — the runtime cleanly degraded.
-        assert result["ok"] is False
-        assert result["outcome"] == "failed"
-        assert result["channel"] == "alerts"
+        with pytest.raises(ChannelError) as exc:
+            asyncio.run(d.channel_send("alerts", {"x": 1}))
+        # The wrapped error preserves the original message for ops
+        # debugging from the audit log.
+        assert "simulated upstream failure" in str(exc.value)
+
+    def test_surface_as_error_chains_original_via_cause(self):
+        """`raise ChannelError(...) from e` preserves the original
+        exception object on __cause__. Ops tooling that walks
+        the exception chain (e.g., structured loggers, audit
+        emitters) needs this to surface the upstream message."""
+        from termin_server.channel_config import ChannelError
+
+        ir = _ir(_ch("alerts", "webhook", failure_mode="surface-as-error"))
+        deploy = _deploy("alerts", _binding())
+        d = ChannelDispatcher(ir, deploy, _registry())
+        asyncio.run(d.startup(strict=False))
+
+        original = RuntimeError("origin")
+
+        class BoomProvider:
+            async def send(self, body=None, headers=None):
+                raise original
+
+        d._channel_providers["alerts"] = BoomProvider()
+        with pytest.raises(ChannelError) as exc:
+            asyncio.run(d.channel_send("alerts", {"x": 1}))
+        assert exc.value.__cause__ is original
 
 
-class TestQueueAndRetryForever:
-    """Per channel-contract.md §5.3 — queue-and-retry-forever returns
-    {"ok": False, "outcome": "queued", ...} immediately. Conformance
-    is conditional: a runtime that has not implemented this mode MUST
-    fall back to log-and-drop."""
+# ── §5.4: queue-and-retry — DEFERRED to v0.10 ────────────────────
 
-    def test_queue_or_drop_either_posture_acceptable(self):
-        ir = _ir(_ch("alerts", "webhook",
-                     failure_mode="queue-and-retry-forever"))
+
+class TestQueueAndRetry:
+    """Per channel-contract.md §5.4 — `queue-and-retry` (renamed from
+    `queue-and-retry-forever` in v0.9.1) is grammar-accepted but the
+    full retry-worker implementation lands v0.10 with exponential
+    backoff and a dead-letter table after a configurable
+    max-retry-hours window (default reasonable, 24h cap).
+
+    Until v0.10, conforming v0.9.x runtimes MUST fall back to
+    log-and-drop with a logged warning that distinguishes the
+    placeholder from genuine default behavior. The semantic
+    queue-shape test is SKIPPED until v0.10; the fallback test below
+    asserts the conformant non-implementation posture for v0.9.x."""
+
+    @pytest.mark.skip(
+        reason="queue-and-retry semantic test deferred to v0.10 — "
+        "implementation not yet shipped. v0.9.x runtimes fall back "
+        "to log-and-drop, asserted in test_queue_and_retry_falls_back. "
+        "See specs/channel-contract.md §5.4."
+    )
+    def test_queue_shape_with_retry_worker_v010(self):
+        """v0.10 will assert: outcome='queued' on first failure,
+        opaque queue_id, exponential backoff schedule, payload
+        migrated to dead-letter after max-retry-hours timeout."""
+
+    def test_queue_and_retry_falls_back_to_log_and_drop_in_v091(self):
+        """v0.9.x conformance: a runtime that hasn't implemented the
+        retry worker MUST fall back to log-and-drop. Crashes or
+        silent swallowing without the failure-shaped return are
+        non-conforming."""
+        ir = _ir(_ch("alerts", "webhook", failure_mode="queue-and-retry"))
         deploy = _deploy("alerts", _binding())
         d = ChannelDispatcher(ir, deploy, _registry())
         asyncio.run(d.startup(strict=False))
@@ -226,16 +270,15 @@ class TestQueueAndRetryForever:
                 raise RuntimeError("simulated")
 
         d._channel_providers["alerts"] = BoomProvider()
+        # MUST NOT raise — fallback is mandatory for v0.9.x
+        # non-implementing runtimes.
         result = asyncio.run(d.channel_send("alerts", {"x": 1}))
-        # Posture (a) implemented: outcome="queued" with ok=False.
-        # Posture (b) fallback: outcome="failed" with ok=False.
         assert result["ok"] is False
-        assert result["outcome"] in ("queued", "failed"), \
-            f"queue-and-retry-forever must produce 'queued' (implemented) " \
-            f"or 'failed' (fallback), got outcome={result['outcome']!r}"
+        assert result["outcome"] == "failed"
+        assert result["channel"] == "alerts"
 
 
-# ── §5.4: per-channel scope ──────────────────────────────────────
+# ── §5.5: per-channel scope ──────────────────────────────────────
 
 
 class TestPerChannelFailureMode:

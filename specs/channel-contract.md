@@ -122,14 +122,19 @@ are not implementing it.
   the source; the IR shape it produces is what the runtime sees.
   See `termin-ir-schema.json` for the JSON shape of `channels[]`.
 - **Failure modes beyond `log-and-drop` in v0.9.0.** The
-  `surface-as-error` and `queue-and-retry-forever` modes parse
-  and lower correctly, but the v0.9.0 reference runtime always
-  uses log-and-drop at runtime. v0.9.1 (this conformance pack)
-  begins to specify the runtime semantics of all three modes
-  (§5); a runtime that fully implements the latter two MUST
-  observe the semantics here. A runtime that implements only
-  log-and-drop is still v0.9.0-conforming — see §5.4 for the
-  conformance posture across runtime versions.
+  `surface-as-error` and `queue-and-retry` modes parse and lower
+  correctly in v0.9.0, but the v0.9.0 reference runtime always
+  uses log-and-drop at runtime. **v0.9.1 implements
+  `surface-as-error`** (the dispatcher re-raises ChannelError to
+  the caller when the provider raises) and the conformance pack
+  asserts the deterministic shape (§5.3). **`queue-and-retry`**
+  (renamed from `queue-and-retry-forever` to reflect the v0.10
+  design that bounds retry duration) remains a grammar
+  placeholder in v0.9.x; full implementation lands v0.10 with
+  exponential backoff + a dead-letter table after a configurable
+  max-retry-hours window (default reasonable, max 24h). The
+  conformance pack §5.4 SKIPS the queue-and-retry semantic test
+  with a documented v0.10 deferral marker.
 - **Real provider products** (real Slack, real SES, real Twilio).
   The conformance pack tests the contract surface against the
   reference stub products. A conforming third-party product
@@ -550,16 +555,25 @@ unspecified. The three values are:
   `{"ok": False, "outcome": "failed", "channel": <display>}`.
   No exception propagates. The error is logged at warning level.
 - **`surface-as-error`**. Provider exceptions propagate to the
-  caller of `channel_send()`. The runtime translates them to
-  HTTP 5xx responses for HTTP-triggered sends, or to
-  TerminAtor-routed errors for event-triggered sends.
-- **`queue-and-retry-forever`**. Provider exceptions are caught;
-  the send is enqueued for persistent retry. The send returns
-  `{"ok": False, "outcome": "queued", "channel": <display>}`
-  immediately. The runtime is responsible for retrying until the
-  send succeeds or the queue is explicitly drained. This mode is
-  best-effort persistence; a runtime that does not implement it
-  MAY downgrade to `log-and-drop` and log the substitution.
+  caller of `channel_send()` as a `ChannelError`. The original
+  exception is chained via `__cause__` so the audit trail
+  preserves the upstream message. The runtime translates the
+  raised `ChannelError` to an HTTP 5xx for HTTP-triggered sends,
+  or routes it through TerminAtor for event-triggered sends.
+- **`queue-and-retry`** (v0.10). The send is enqueued in a
+  durable per-app `_termin_channel_queue` table; the synchronous
+  `channel_send()` call returns
+  `{"ok": False, "outcome": "queued", "channel": <display>,
+  "queue_id": <id>}` immediately. An async retry worker drains
+  the queue with exponential backoff. After a configurable
+  `max_retry_hours` window (default reasonable, MUST NOT exceed
+  24h) the payload moves to a `_termin_channel_dead_letter`
+  table for operator inspection. v0.9.x reference runtime falls
+  back to `log-and-drop` with a logged-warning posture
+  distinguishing the placeholder from genuine default behavior;
+  full implementation lands v0.10. A v0.9.x runtime that has
+  not implemented this mode SHALL fall back to log-and-drop —
+  this is the only conformant non-implementation posture.
 
 ### 5.2 Conformance of `log-and-drop`
 
@@ -574,22 +588,54 @@ The conformance pack tests `log-and-drop` end-to-end:
 
 These tests run against the reference runtime today.
 
-### 5.3 Conformance of `surface-as-error` and `queue-and-retry-forever`
+### 5.3 Conformance of `surface-as-error`
 
-The conformance pack tests these as **conditional** invariants:
-the test runs only if the runtime advertises support for the mode
-(via a runtime-level feature flag exposed through the conformance
-adapter). A runtime that always falls back to `log-and-drop`
-SKIPs these tests with a clear marker.
+`surface-as-error` is a **deterministic** conformance test as of
+v0.9.1: when a channel declares `failure_mode: "surface-as-error"`
+and the provider's `send()` raises any exception, the dispatcher
+MUST:
 
-The v0.9.0 reference runtime falls back to `log-and-drop` for
-both modes. v0.9.1 begins to specify the runtime semantics; the
-reference runtime MAY implement them in a subsequent release. The
-conformance pack does not require all three modes to ship at v0.9.1
-— it requires the contract to be declared, with the implementation
-optional.
+- Re-raise as `ChannelError(...)`. (Original exception preserved
+  via `__cause__` chaining.)
+- Increment the per-channel error counter (same bookkeeping as
+  log-and-drop).
+- Log the failure at warning level (same as log-and-drop).
 
-### 5.4 Per-channel scope
+The v0.9.1 reference runtime implements this; the conformance
+test asserts the propagation shape directly without an
+"either/or" fallback escape hatch. A runtime that catches and
+swallows in surface-as-error mode is non-conforming.
+
+### 5.4 Conformance of `queue-and-retry` — DEFERRED to v0.10
+
+The grammar accepts `Failure mode is queue-and-retry`, the
+analyzer validates the value, the IR records it. The v0.9.x
+reference runtime falls back to log-and-drop with a logged
+warning that distinguishes the placeholder mode from genuine
+default behavior, so apps that declare it don't break — but
+the queueing + retry + dead-letter semantics are NOT yet
+required by the v0.9.1 conformance pack. The semantic test is
+**SKIPPED** with a `pytest.mark.skip` marker pointing at this
+section.
+
+When the v0.10 implementation lands, this section will be
+replaced with the deterministic conformance shape:
+
+- `outcome="queued"` immediately on first failure
+- `queue_id` opaque to the caller
+- exponential backoff retry schedule (initial 30s, doubling, capped
+  at 1h between attempts)
+- payload migrated to `_termin_channel_dead_letter` after
+  configurable `max_retry_hours` exhausted (operator-set, default
+  reasonable, MUST NOT exceed 24h)
+- dead-letter table observable via reflection / admin endpoint
+  for operator drainage
+
+Until v0.10, a conforming runtime MUST fall back to log-and-drop
+when it sees `queue-and-retry` and has not implemented the worker.
+Silent crashes or other behaviors are non-conforming.
+
+### 5.5 Per-channel scope
 
 `failure_mode` is per-channel. Two channels in the same app may
 declare different failure modes. The runtime MUST honor each
@@ -809,12 +855,14 @@ non-idempotency contract, and the empty-content-skip rule.
 ### 8.5 Failure-mode conformance (`tests/test_v09_channel_failure_modes.py`)
 
 Tests `log-and-drop` end-to-end (provider raises → channel_send
-returns failure dict). Tests `surface-as-error` and
-`queue-and-retry-forever` conditionally — the test asserts the
-runtime either implements the documented semantics OR cleanly
-falls back to log-and-drop with a logged substitution. v0.9.0
-implementations pass via the fallback path; v0.9.1+
-implementations pass by implementing the semantics.
+returns failure dict, no exception propagates). Tests
+`surface-as-error` **deterministically** (provider raises →
+ChannelError propagates; original exception chained via
+`__cause__`; per-channel error metric increments) per §5.3. The
+`queue-and-retry` test is **SKIPPED** with a `pytest.mark.skip`
+marker pointing at §5.4 — the v0.10 deferral. v0.9.x runtimes
+that fall back to log-and-drop are conformant; v0.10 will
+replace the skip with a deterministic queue-shape assertion.
 
 ### 8.6 What "conforming" means
 
