@@ -1,6 +1,6 @@
 # Termin Conformance Suite
 
-Conformance test suite and specification for the Termin runtime. Contains the IR JSON Schema, Runtime Implementer's Guide, package format spec, test `.termin.pkg` fixtures, and the v0.9.0 behavioral test suite (925 passing on the reference runtime — 915 HTTP/WebSocket on the in-process `reference` adapter + 10 Playwright browser tests on the `served-reference` adapter; 31 skipped depend on optional adapters). Everything needed to build and validate a conforming Termin runtime.
+Conformance test suite and specification for the Termin runtime. Contains the IR JSON Schema, Runtime Implementer's Guide, package format spec, test `.termin.pkg` fixtures, and the v0.9.1 behavioral test suite (1036 passing on the reference runtime + 10 Playwright browser tests on the `served-reference` adapter; 32 skipped depend on optional adapters or are gated on v0.10 implementations like `queue-and-retry`). Everything needed to build and validate a conforming Termin runtime.
 
 ## What's Inside
 
@@ -139,7 +139,7 @@ The v0.8 round-trip fixture lives at `fixtures/migrations/v08_round_trip/` and w
 
 ## IR Version
 
-Current: **0.9.0** (in development)
+Current: **0.9.0** (released; conformance pack at 0.9.1 — IR schema unchanged between 0.9.0 and 0.9.1)
 
 ### 0.7.0 (April 2026)
 

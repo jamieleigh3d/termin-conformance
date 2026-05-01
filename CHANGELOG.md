@@ -1,5 +1,81 @@
 # Changelog
 
+## [0.9.1] — 2026-05-01
+
+Conformance pack expansion + spec-tightening release. Closes the
+Phase 3 + Phase 4 cross-runtime conformance gaps that v0.9.0 left
+deferred. **IR schema unchanged** at 0.9.0 — patch release only
+adds new `test_v09_*.py` files and tightens existing assertions;
+no fixture re-shape.
+
+### Added
+
+- **Phase 3 conformance pack** — `specs/compute-contract.md`
+  (~1100 lines, 9 sections covering registry shape, tool-surface
+  gating, audit-record reshape per BRD §6.3.4, refusal envelope
+  + sidecar semantics, Acts-as principal substitution) plus 45
+  adapter-tested assertions across 5 files
+  (`test_v09_compute_{contract,grants,audit,refusal,acts_as}.py`).
+  Pins the three Compute contracts (`llm`, `ai-agent`,
+  `default-CEL`) for any conforming runtime + provider pair.
+- **Phase 4 conformance pack** — `specs/channel-contract.md`
+  (~900 lines, 8 sections covering the four channel contracts,
+  registry surface, failure-mode semantics, strict-mode gate,
+  inbound auto-routing, per-channel scope) plus 77 adapter-tested
+  assertions across 5 files
+  (`test_v09_channel_{contract,dispatch,strict_mode,inbound,failure_modes}.py`).
+- **`__termin_principal_preferences` audit-shape additions**
+  surface in the `compute_audit_log_*` schema across the
+  reference fixtures — they round-trip cleanly through the
+  conformance suite at the new totals.
+
+### Changed
+
+- **`failure_mode` enum:** renamed `queue-and-retry-forever` →
+  `queue-and-retry` in `specs/termin-ir-schema.json`. Companion
+  rename across the compiler analyzer + parser + IR schema.
+- **Spec §5.3 — `surface-as-error` is now deterministic**, not
+  conditional. The previous "either propagates or falls back to
+  log-and-drop" framing accepted broken implementations; v0.9.1
+  pins the contract: provider raises → ChannelError propagates,
+  original chained via `__cause__`, error metric increments. A
+  runtime that catches and swallows in this mode is
+  non-conforming.
+- **Spec §5.4 — `queue-and-retry` test SKIPPED with v0.10
+  deferral marker**. The v0.10 implementation lands an async
+  retry worker with exponential backoff + dead-letter table at a
+  configurable max-retry-hours window. The v0.9.x conformance
+  posture: a runtime that has not implemented the worker MUST
+  fall back to log-and-drop; the fallback test is deterministic.
+- **Spec §7.1 — anonymous principal stamping requires
+  `anonymous:<short>` synthesis** (was silent on the anonymous
+  case in v0.9.0, leading to empty-string columns). The v0.9.1
+  reference runtime synthesizes via the new
+  `make_anonymous_principal` factory in `termin-core`.
+
+### Fixed
+
+- **Manual-trigger CEL audit gap (§5.2).** v0.9.0 reference
+  runtime silently dropped audit rows on the manual `/trigger`
+  path for `default-CEL` computes. Spec §5.2 always required
+  the row; the conformance test now asserts it
+  (un-skipped from the previous "skip if missing" placeholder).
+  Reference-runtime fix lives in
+  `termin-server/compute_runner._execute_cel_compute`.
+- **Stranded delegate-mode test relaxation** picked up at
+  release-day audit time — the post-FF-merge test was asserting
+  the older mirror invariant against the new chain-target
+  invariant. Recovery commit `4e56297` aligned spec + test.
+
+### Suite
+
+**1036 tests passing on the reference runtime, 32 skipped, 0
+failed in 46s** (was 925 + 31 skipped + 0 failed). Test count
+delta: +111 from Phase 3 (45) + Phase 4 (77) packs, minus 11
+that overlapped with existing single-state-machine tests now
+covered structurally by the new packs. Browser conformance
+(`test_v08_browser.py` on `served-reference`) holds at 10/10.
+
 ## [0.9.0] — 2026-04-30
 
 The v0.9 milestone release. The conformance suite tracks IR schema
