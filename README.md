@@ -1,6 +1,6 @@
 # Termin Conformance Suite
 
-Conformance test suite and specification for the Termin runtime. Contains the IR JSON Schema, Runtime Implementer's Guide, package format spec, test `.termin.pkg` fixtures, and 788 behavioral tests (778 HTTP/WebSocket + 10 Playwright browser). Everything needed to build and validate a conforming Termin runtime.
+Conformance test suite and specification for the Termin runtime. Contains the IR JSON Schema, Runtime Implementer's Guide, package format spec, test `.termin.pkg` fixtures, and the v0.9.0 behavioral test suite (925 passing on the reference runtime — 915 HTTP/WebSocket on the in-process `reference` adapter + 10 Playwright browser tests on the `served-reference` adapter; 31 skipped depend on optional adapters). Everything needed to build and validate a conforming Termin runtime.
 
 ## What's Inside
 

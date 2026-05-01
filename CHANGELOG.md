@@ -1,6 +1,27 @@
 # Changelog
 
-## Unreleased — v0.9 in progress
+## [0.9.0] — 2026-04-30
+
+The v0.9 milestone release. The conformance suite tracks IR schema
+0.9.0 and the v0.9 contract additions — keyset-cursor pagination,
+multi-state-machine support, ownership-cascade gates (BRD #3 §3.6),
+the `the user` shape on the CEL surface (BRD #3 §4.2), and the ten
+`presentation-base.*` provider contracts (BRD #2 §5.1).
+
+**Release-day suite:** 925 tests passing on Windows (915 reference +
+10 served-reference browser), 31 skipped, 0 failing. Browser
+conformance returns to 10/10 after the EditModalFlow regression in
+the compiler was fixed today (see compiler CHANGELOG).
+
+### Release-day note (2026-04-30)
+
+Fixtures regenerated end-to-end via `termin-compiler/util/release.py`
+to pick up the `_build_edit_modal` lowering fix that retired the
+duplicate `data-termin-field` emission for state-machine columns.
+The `fixtures/*.termin.pkg` artifacts and `fixtures/ir/*.json` IR
+dumps reflect the corrected lowering; the v0.8 EditModalFlow tests
+in `tests/test_v08_browser.py` pass against the regenerated
+warehouse fixture.
 
 ### 24 pre-existing failures squashed (2026-04-29 late evening)
 
