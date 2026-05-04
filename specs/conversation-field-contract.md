@@ -108,7 +108,8 @@ The runtime accepts and persists the following optional fields when the caller s
 | `parent_id` | The id of the entry that triggered this one. Set by the runtime on every auto-write-back entry (§5.5) to point at the user entry that started the turn. Optional for caller-supplied entries. |
 | `tool_call_id` | Provider-supplied id linking a `tool_call` to its `tool_result`. Required on both kinds for the materializer's tool-linkage validation (§7.5). |
 | `tool_name` | The tool the agent called, on `tool_call` entries. |
-| `tool_args` | The args the agent supplied to the tool, on `tool_call` entries. JSON-passable. |
+| `tool_args` | The args the agent supplied to the tool, on `tool_call` entries. JSON-passable. **Does NOT include `purpose`** — the runtime strips it from the args before persisting and before invoking the tool callback. |
+| `purpose` | Short (6 words ideal, 12-word hard cap) display string the agent supplies for a `tool_call` entry. Lets chat UIs show a meaningful label without parsing `tool_args`. The runtime hard-truncates at 12 words with an ellipsis on persistence. **Optional** — agents that omit it produce entries with no `purpose` field; the chat UI should fall back to `body`. Reserved on other kinds. |
 | `attachments` | List of attachment descriptors on `user` entries. Each has at least `media_type` and `source` (Anthropic-shape). The materializer turns these into `image` / `document` content blocks per §7.3. |
 
 ### 3.4 Anthropic-shape materialization output (provider-native form)
@@ -260,11 +261,35 @@ Every `tool_result` entry MUST have a `tool_call_id` that matches a preceding `t
 
 The runtime auto-writes the agent's actions in source order:
 
-- **For each tool call the agent made on a turn** → one `kind: "tool_call"` entry with `tool_call_id` from the provider's response, `tool_name`, `tool_args`, and `body` set to `"<tool_name>(<json args>)"` (the structured fields hold the data; body is the at-a-glance summary). v0.9.2 ships no truncation on body; v0.9.3+ adds an optional `purpose` field for short display per design §21.
-- **For each tool result returned by the runtime to the agent** → one `kind: "tool_result"` entry linked by `tool_call_id`, with `body` set to the result text. `is_error: true` on tool execution failures.
+- **For each tool call the agent made on a turn** → one `kind: "tool_call"` entry with `tool_call_id` from the provider's response, `tool_name`, `tool_args` (with `purpose` stripped — see below), and `body` set to `"<tool_name>(<json args>)"`. The structured fields hold the data; body is the at-a-glance summary. Body is not truncated. When the agent supplied a `purpose` arg, the runtime persists a hard-truncated form (12-word cap, ellipsis when over) on the entry; chat UIs that want a short label use it, falling back to `body` when absent.
+- **For each tool result returned by the runtime to the agent** → one `kind: "tool_result"` entry linked by `tool_call_id`, with `body` set to the result text. `is_error: true` on tool execution failures. (No `purpose` on tool_result.)
 - **For the agent's final assistant text on natural turn end** → one `kind: "assistant"` entry (no `type` field) with the text in `body`.
 
 All entries written by the auto-write-back pipeline carry the same `parent_id` (the user entry that triggered the agent), so reviewers can reconstruct turn boundaries.
+
+### 7.7 The `purpose` schema field
+
+Conforming runtimes MUST add an optional `purpose` property to **every** tool's `input_schema` (CRUD tools, `system_refuse`, and every `Invokes`-declared compute tool). The field's description text directs the agent to supply a 6-words-or-less plain-English description of why it's calling the tool. The runtime extracts `purpose` from the agent's tool args before invoking the tool callback (the tool itself never sees it) and persists a hard-truncated form on the corresponding `tool_call` conversation entry.
+
+Truncation rule: when the supplied string contains more than 12 whitespace-separated words, the first 12 words plus `...` are persisted. 12 words exactly are persisted unchanged. This is enforced at persistence time (so a poorly-trained or non-compliant model can't blow up the chat surface).
+
+### 7.8 Invokes runtime wiring
+
+Conforming runtimes MUST surface every compute named in an ai-agent compute's `Invokes` list as an Anthropic-shape tool on that agent's tool surface. v0.9.2 conformance is **default-CEL invokable tools only**; runtimes MAY skip computes whose `provider` is `llm` or `ai-agent` (with no error — the analyzer ensured the names resolve to declared computes; the tool surface gracefully omits non-CEL providers).
+
+Tool schema construction:
+
+- `name` = compute snake_case name.
+- `description` = compute display name + (when present) the first line of its directive.
+- `input_schema.properties` = one object-typed property per declared input param (the agent passes a record-shaped dict; the runtime evaluates the body with that dict bound to the param name). The `purpose` property is added per §7.7.
+- All declared input params are `required` in the schema.
+
+Tool dispatch:
+
+- The agent's tool args are bound into a CEL evaluation context. Each declared input param's value is taken from `tool_args[param_name]` (or, when not supplied as a nested key, from the bare `tool_args` dict — for tolerance with simple flat-args agents).
+- The compute's body expression is evaluated.
+- The runtime returns the mutated `output_params` record (Transform/Reduce-shape convention) when the body sets fields on it; otherwise the bare expression result is returned as `{value: <result>}`.
+- Tool execution errors propagate as `tool_result` entries with `is_error: true`.
 
 ---
 

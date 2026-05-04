@@ -462,3 +462,172 @@ class TestConversationModeIRInvariants:
         assert expected_suffix in trigger, (
             f"trigger {trigger!r} must reference {expected_suffix!r}"
         )
+
+    def test_reply_invokes_current_time(self, agent_chatbot_ir):
+        """v0.9.2 close-out: agent_chatbot's reply compute declares
+        Invokes "current_time" — the IR carries it."""
+        reply = self._reply_compute(agent_chatbot_ir)
+        invokes = reply.get("invokes") or []
+        assert "current_time" in invokes, (
+            f"reply.invokes must include 'current_time'; "
+            f"got {invokes!r}"
+        )
+
+    def test_current_time_compute_is_default_cel(self, agent_chatbot_ir):
+        """v0.9.2 close-out: only default-CEL computes are wireable
+        as Invokes tools in v0.9.2; current_time is the canonical
+        example."""
+        ct = next(
+            (c for c in agent_chatbot_ir.get("computes", [])
+             if c["name"]["snake"] == "current_time"),
+            None,
+        )
+        assert ct is not None, (
+            "agent_chatbot must declare a `current_time` Compute"
+        )
+        provider = ct.get("provider") or "cel"
+        assert provider in ("cel", "default-CEL", "", None), (
+            f"current_time must be a default-CEL compute for v0.9.2 "
+            f"Invokes wiring; got provider={provider!r}"
+        )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# § 7.7 — `purpose` schema field on tool entries
+# ──────────────────────────────────────────────────────────────────────
+
+
+class TestPurposeFieldOnToolCallEntry:
+    """Per §7.7: tool_call entries can carry an optional `purpose`
+    field — runtime extracts from agent args, hard-truncates at 12
+    words, persists on the entry. Drives via deploy_with_agent_mock
+    with a scripted system_refuse call carrying a purpose arg."""
+
+    def test_purpose_persists_when_supplied_to_system_refuse(self, tmp_path):
+        # The mock dispatches its scripted tool calls through the
+        # gated execute_tool, but the agent_loop_with_conversation
+        # path that extracts `purpose` is the production loop —
+        # mocks bypass it. So we exercise the runtime's `purpose`
+        # passthrough at the persistence layer instead: make a
+        # direct REST append with purpose set.
+        info, _results = _adapter.deploy_with_agent_mock(
+            FIXTURES_DIR / "agent_chatbot.termin.pkg",
+            "purpose_persist", tool_calls=[],
+        )
+        try:
+            session = _adapter.create_session(info)
+            session.set_role("anonymous")
+            create = session.post(
+                "/api/v1/chat_threads", json={"title": "purpose"})
+            thread_id = create.json()["id"]
+
+            # Append a tool_call entry directly with purpose set.
+            ap = session.post(
+                f"/api/v1/chat_threads/{thread_id}/conversation:append",
+                json={
+                    "kind": "tool_call",
+                    "body": "current_time({})",
+                    "tool_call_id": "toolu_p_1",
+                    "tool_name": "current_time",
+                    "tool_args": {},
+                    "purpose": "checking the time",
+                })
+            assert ap.status_code == 201, ap.text
+            entry = ap.json()
+            assert entry.get("purpose") == "checking the time"
+
+            # Read-back also surfaces the purpose.
+            get = session.get(f"/api/v1/chat_threads/{thread_id}")
+            raw = get.json().get("conversation")
+            entries = (
+                raw if isinstance(raw, list)
+                else (json.loads(raw) if raw else [])
+            )
+            assert len(entries) == 1
+            assert entries[0].get("purpose") == "checking the time"
+        finally:
+            if info.cleanup:
+                info.cleanup()
+
+    def test_purpose_omitted_when_not_supplied(self, tmp_path):
+        """Absent purpose stays absent on the persisted entry."""
+        info, _results = _adapter.deploy_with_agent_mock(
+            FIXTURES_DIR / "agent_chatbot.termin.pkg",
+            "purpose_omit", tool_calls=[],
+        )
+        try:
+            session = _adapter.create_session(info)
+            session.set_role("anonymous")
+            create = session.post(
+                "/api/v1/chat_threads", json={"title": "no purpose"})
+            thread_id = create.json()["id"]
+            ap = session.post(
+                f"/api/v1/chat_threads/{thread_id}/conversation:append",
+                json={
+                    "kind": "tool_call",
+                    "body": "current_time({})",
+                    "tool_call_id": "toolu_no_p",
+                    "tool_name": "current_time",
+                    "tool_args": {},
+                })
+            assert ap.status_code == 201
+            entry = ap.json()
+            assert "purpose" not in entry, (
+                f"absent purpose must not be added as null; got {entry!r}"
+            )
+        finally:
+            if info.cleanup:
+                info.cleanup()
+
+
+# ──────────────────────────────────────────────────────────────────────
+# § 7.8 — Invokes runtime wiring
+# ──────────────────────────────────────────────────────────────────────
+
+
+class TestInvokesRuntimeWiring:
+    """Per §7.8: a CEL compute named in an ai-agent's Invokes list
+    is callable as a tool. The runtime evaluates the CEL body with
+    tool_args bound and returns the result."""
+
+    def test_invoked_cel_compute_returns_a_result(self, tmp_path):
+        """End-to-end: trigger the agent via a user append; the
+        scripted mock invokes current_time as a tool; the runtime
+        evaluates the CEL body and returns a result; tool_results
+        captures the call. The fixture's current_time mutates
+        chat_thread.title to `now`, so the result dict carries a
+        chat_thread record with a stamped title."""
+        info, results = _adapter.deploy_with_agent_mock(
+            FIXTURES_DIR / "agent_chatbot.termin.pkg",
+            "invokes_wiring",
+            tool_calls=[
+                ("current_time", {"chat_thread": {"id": "t-1", "title": "old"}}),
+            ],
+        )
+        try:
+            session = _adapter.create_session(info)
+            session.set_role("anonymous")
+            create = session.post(
+                "/api/v1/chat_threads", json={"title": "invokes test"})
+            thread_id = create.json()["id"]
+            ap = session.post(
+                f"/api/v1/chat_threads/{thread_id}/conversation:append",
+                json={"kind": "user", "body": "what time?"})
+            assert ap.status_code == 201
+            time.sleep(_WAIT)
+
+            # The mock's scripted tool call fired and was captured.
+            calls = [r for r in results if r["tool"] == "current_time"]
+            assert len(calls) >= 1, (
+                f"current_time was not dispatched as a tool; got "
+                f"results={results!r}"
+            )
+            # The runtime returned a result (not an error envelope).
+            result = calls[0].get("result") or {}
+            assert isinstance(result, dict), result
+            assert "error" not in result, (
+                f"current_time invocation surfaced an error: {result!r}"
+            )
+        finally:
+            if info.cleanup:
+                info.cleanup()
