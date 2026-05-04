@@ -182,6 +182,8 @@ class ReferenceAdapter(RuntimeAdapter):
         original_agent_loop = AIProvider.agent_loop
         original_agent_loop_streaming = getattr(
             AIProvider, "agent_loop_streaming", None)
+        original_agent_loop_with_conversation = getattr(
+            AIProvider, "agent_loop_with_conversation", None)
 
         def mock_startup(self_ai):
             self_ai._client = True
@@ -205,9 +207,58 @@ class ReferenceAdapter(RuntimeAdapter):
                 await on_event({"type": "done", "output": result})
             return result
 
+        async def mock_agent_loop_with_conversation(
+            self_ai, system_prompt, messages, tools, execute_tool,
+            on_writeback, on_event=None, max_turns=20,
+        ):
+            """v0.9.2 conversation-mode mock — runs the scripted
+            ``tool_calls`` against the gated execute_tool, then writes
+            an assistant text entry back via ``on_writeback`` so the
+            §11.5 auto-write-back path produces a visible turn boundary
+            for conformance to inspect.
+
+            Tool-call records still land on ``tool_results`` for
+            non-conversation tests that share the deploy_with_agent_mock
+            entry point. Tests that want to assert tool_call /
+            tool_result conversation entries land in the materialized
+            field can drive the mock with a single
+            ``("system_refuse", {...})`` or trivially-named tool and
+            then read the conversation field directly through the
+            CRUD surface — the same surface real chat UIs use.
+            """
+            for tool_name, tool_input in tool_calls:
+                try:
+                    result = await execute_tool(tool_name, tool_input)
+                    tool_results.append({
+                        "tool": tool_name,
+                        "input": tool_input,
+                        "result": result,
+                    })
+                except Exception as exc:  # pragma: no cover — defensive
+                    tool_results.append({
+                        "tool": tool_name,
+                        "input": tool_input,
+                        "result": str(exc),
+                        "is_error": True,
+                    })
+            # If the script didn't terminate via system_refuse (which
+            # owns the entry on its side per L7.4), write a deterministic
+            # assistant reply so downstream tests can observe the §11.5
+            # write-back path.
+            refused = any(tn == "system_refuse" for tn, _ in tool_calls)
+            if not refused:
+                await on_writeback(
+                    kind="assistant",
+                    body="mock agent reply",
+                )
+            return {"thinking": "mock agent completed",
+                    "summary": "ok",
+                    "tool_results": tool_results}
+
         AIProvider.startup = mock_startup
         AIProvider.agent_loop = mock_agent_loop
         AIProvider.agent_loop_streaming = mock_agent_loop_streaming
+        AIProvider.agent_loop_with_conversation = mock_agent_loop_with_conversation
 
         db_file = tempfile.mktemp(suffix=".db")
         app = create_termin_app(ir_json, db_path=db_file, seed_data=seed_data,
@@ -227,6 +278,10 @@ class ReferenceAdapter(RuntimeAdapter):
                          original_agent_loop_streaming)
                  if original_agent_loop_streaming is not None
                  else delattr(AIProvider, 'agent_loop_streaming')),
+                (setattr(AIProvider, 'agent_loop_with_conversation',
+                         original_agent_loop_with_conversation)
+                 if original_agent_loop_with_conversation is not None
+                 else delattr(AIProvider, 'agent_loop_with_conversation')),
             ),
         )
         self._sessions[id(info)] = session

@@ -53,12 +53,20 @@ _adapter = _get_adapter()
 
 def _require_agent_mock():
     """Skip if the adapter doesn't expose deploy_with_agent_mock —
-    the contract is exercised through that surface."""
+    the contract is exercised through that surface.
+
+    Uses the v0.9.1 messages-collection fixture
+    (agent_chatbot_legacy.termin) — the agent CRUD-grant surface
+    these tests exercise (`Accesses messages`, content_query /
+    content_create on `messages`) is the legacy shape. The v0.9.2
+    conversation-mode dispatch path uses the same gating
+    machinery; its surface is exercised in
+    test_v092_conversation_field.py."""
     if not hasattr(_adapter, "deploy_with_agent_mock"):
         pytest.skip("adapter does not expose deploy_with_agent_mock")
-    pkg = FIXTURES_DIR / "agent_chatbot.termin.pkg"
+    pkg = FIXTURES_DIR / "agent_chatbot_legacy.termin.pkg"
     if not pkg.exists():
-        pytest.skip("agent_chatbot fixture not found")
+        pytest.skip("agent_chatbot_legacy fixture not found")
     return pkg
 
 
@@ -291,19 +299,28 @@ class TestComputeSpecGrantShape:
     declared; tests here fail-fast if the IR is wrong before
     behavioral tests run."""
 
-    def test_agent_chatbot_accesses_messages(self, agent_chatbot, agent_chatbot_ir):
-        """IR-only fixtures (e.g. ``agent_chatbot_ir``) never close
-        the cached TestClient on session teardown. We co-request
-        the session-scoped ``agent_chatbot`` fixture so its cleanup
-        runs and pytest exits cleanly."""
+    def test_agent_chatbot_legacy_accesses_messages(
+            self, agent_chatbot_legacy, agent_chatbot_legacy_ir):
+        """v0.9.1 messages-collection shape (preserved at
+        agent_chatbot_legacy.termin): the `reply` agent compute
+        carries `Accesses messages` in source, which lowers to the
+        IR's accesses list. The v0.9.2 conversation-mode
+        agent_chatbot uses Conversation is instead — its IR
+        invariants are checked in
+        test_v092_conversation_field.py::TestConversationModeIRInvariants.
+
+        IR-only fixtures (e.g. ``agent_chatbot_legacy_ir``) never
+        close the cached TestClient on session teardown. We
+        co-request the session-scoped ``agent_chatbot_legacy``
+        fixture so its cleanup runs and pytest exits cleanly."""
         agent = next(
-            c for c in agent_chatbot_ir["computes"]
+            c for c in agent_chatbot_legacy_ir["computes"]
             if c.get("provider") == "ai-agent"
         )
         accesses = agent.get("accesses") or []
         assert "messages" in accesses, (
-            f"agent_chatbot reply.accesses must include 'messages'; "
-            f"got {accesses!r}"
+            f"agent_chatbot_legacy reply.accesses must include "
+            f"'messages'; got {accesses!r}"
         )
 
     def test_v09_compute_carries_reads_field(self, agent_chatbot, agent_chatbot_ir):

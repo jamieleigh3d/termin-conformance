@@ -117,16 +117,23 @@ class TestIdentityModeDeclaration:
 def _require_agent_mock():
     if not hasattr(_adapter, "deploy_with_agent_mock"):
         pytest.skip("adapter does not expose deploy_with_agent_mock")
-    pkg = FIXTURES_DIR / "agent_chatbot.termin.pkg"
+    # v0.9.1 messages-collection shape — preserved at
+    # agent_chatbot_legacy.termin so the delegate-mode audit-stamping
+    # invariants can be exercised through the same trigger surface
+    # they used pre-v0.9.2. The v0.9.2-shape agent_chatbot uses the
+    # conversation-mode dispatch path which exercises the same
+    # audit-stamping machinery — see test_v092_conversation_field.py
+    # for that surface.
+    pkg = FIXTURES_DIR / "agent_chatbot_legacy.termin.pkg"
     if not pkg.exists():
-        pytest.skip("agent_chatbot fixture not found")
+        pytest.skip("agent_chatbot_legacy fixture not found")
     return pkg
 
 
 @pytest.fixture(scope="module")
 def delegate_mode_app():
-    """Run a delegate-mode agent (agent_chatbot's `reply`) once and
-    capture the resulting audit rows."""
+    """Run a delegate-mode agent (agent_chatbot_legacy's `reply`)
+    once and capture the resulting audit rows."""
     pkg = _require_agent_mock()
     info, results = _adapter.deploy_with_agent_mock(
         pkg, "acts_as_delegate",

@@ -14,6 +14,16 @@ The test flow:
 This exercises: transaction staging, Before/After snapshots, postcondition
 evaluation, tool access control (Accesses), boundary enforcement from
 tools, and event propagation from tool-created records.
+
+**Fixture choice:** Uses `agent_chatbot_legacy.termin.pkg` — the
+v0.9.1 messages-collection-shape preserved as backwards-compat
+documentation. The legacy fixture exercises the Accesses-driven
+agent tool surface (content_query / content_create / content_update
+/ state_transition + system_refuse) which is what these tests
+target. The v0.9.2-shape `agent_chatbot.termin.pkg` uses the
+conversation-mode dispatch path (auto-write-back, no set_output);
+its tool surface is exercised separately in
+`test_v092_conversation_field.py`.
 """
 
 import json
@@ -43,7 +53,7 @@ _WAIT = 1.5  # seconds to wait for background agent thread
 @pytest.fixture(scope="module")
 def agent_query_app():
     """App where agent calls content_query on trigger."""
-    pkg = FIXTURES_DIR / "agent_chatbot.termin.pkg"
+    pkg = FIXTURES_DIR / "agent_chatbot_legacy.termin.pkg"
     if not pkg.exists():
         pytest.skip("agent_chatbot fixture not found")
     info, results = _adapter.deploy_with_agent_mock(
@@ -59,7 +69,7 @@ def agent_query_app():
 @pytest.fixture(scope="module")
 def agent_create_app():
     """App where agent calls content_create on trigger."""
-    pkg = FIXTURES_DIR / "agent_chatbot.termin.pkg"
+    pkg = FIXTURES_DIR / "agent_chatbot_legacy.termin.pkg"
     if not pkg.exists():
         pytest.skip("agent_chatbot fixture not found")
     info, results = _adapter.deploy_with_agent_mock(
@@ -76,7 +86,7 @@ def agent_create_app():
 @pytest.fixture(scope="module")
 def agent_multi_tool_app():
     """App where agent calls multiple tools in sequence."""
-    pkg = FIXTURES_DIR / "agent_chatbot.termin.pkg"
+    pkg = FIXTURES_DIR / "agent_chatbot_legacy.termin.pkg"
     if not pkg.exists():
         pytest.skip("agent_chatbot fixture not found")
     info, results = _adapter.deploy_with_agent_mock(
@@ -98,7 +108,7 @@ def agent_multi_tool_app():
 @pytest.fixture(scope="module")
 def agent_denied_app():
     """App where agent tries to access content not in its Accesses."""
-    pkg = FIXTURES_DIR / "agent_chatbot.termin.pkg"
+    pkg = FIXTURES_DIR / "agent_chatbot_legacy.termin.pkg"
     if not pkg.exists():
         pytest.skip("agent_chatbot fixture not found")
     # Try to query a content type that doesn't exist or isn't in Accesses

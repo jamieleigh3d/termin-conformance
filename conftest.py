@@ -235,6 +235,23 @@ def agent_chatbot_ir():
     return app_info.ir
 
 @pytest.fixture(scope="session")
+def agent_chatbot_legacy():
+    """v0.9.1-shape `messages` collection chat fixture, preserved for
+    backwards-compat documentation and for tests that assert the
+    legacy shape (Accesses messages, content_create("messages", ...),
+    role/body fields). The v0.9.2 conversation-mode equivalent is
+    the regular `agent_chatbot` fixture."""
+    app_info, session = _get_app_session("agent_chatbot_legacy")
+    yield session
+    if app_info.cleanup:
+        app_info.cleanup()
+
+@pytest.fixture(scope="session")
+def agent_chatbot_legacy_ir():
+    app_info, _ = _get_app_session("agent_chatbot_legacy")
+    return app_info.ir
+
+@pytest.fixture(scope="session")
 def channel_simple_ir():
     app_info, _ = _get_app_session("channel_simple")
     return app_info.ir

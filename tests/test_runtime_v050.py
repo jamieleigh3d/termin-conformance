@@ -88,14 +88,19 @@ class TestAgentChatbotBootstrap:
         r = agent_chatbot.get("/chat")
         assert r.status_code == 200
 
-    def test_list_messages(self, agent_chatbot):
-        agent_chatbot.set_role("anonymous")
-        r = agent_chatbot.get("/api/v1/messages")
+    def test_list_messages(self, agent_chatbot_legacy):
+        # v0.9.1 messages-collection shape (preserved at
+        # agent_chatbot_legacy.termin). The v0.9.2-shape
+        # agent_chatbot uses a chat_threads + conversation field
+        # instead; the equivalent endpoint is the conversation field
+        # read on a chat_thread record.
+        agent_chatbot_legacy.set_role("anonymous")
+        r = agent_chatbot_legacy.get("/api/v1/messages")
         assert r.status_code == 200
 
-    def test_create_message(self, agent_chatbot):
-        agent_chatbot.set_role("anonymous")
-        r = agent_chatbot.post("/api/v1/messages", json={
+    def test_create_message(self, agent_chatbot_legacy):
+        agent_chatbot_legacy.set_role("anonymous")
+        r = agent_chatbot_legacy.post("/api/v1/messages", json={
             "body": f"Hello {_uid()}",
         })
         assert r.status_code == 201
@@ -325,11 +330,13 @@ class TestSecurityAgentBootstrap:
 class TestDefaultFieldValues:
     """Fields with default_expr should auto-populate."""
 
-    def test_role_defaults_to_user(self, agent_chatbot):
-        """The 'role' enum field has default_expr '"user"'."""
-        agent_chatbot.set_role("anonymous")
+    def test_role_defaults_to_user(self, agent_chatbot_legacy):
+        """The 'role' enum field has default_expr '"user"'.
+        Verified against the v0.9.1 messages-collection shape
+        (agent_chatbot_legacy.termin)."""
+        agent_chatbot_legacy.set_role("anonymous")
         tag = _uid()
-        r = agent_chatbot.post("/api/v1/messages", json={
+        r = agent_chatbot_legacy.post("/api/v1/messages", json={
             "body": f"Default role {tag}",
         })
         assert r.status_code == 201
@@ -337,11 +344,11 @@ class TestDefaultFieldValues:
         # The role field should default to "user"
         assert msg.get("role") == "user"
 
-    def test_explicit_role_overrides_default(self, agent_chatbot):
+    def test_explicit_role_overrides_default(self, agent_chatbot_legacy):
         """Explicitly setting role should override the default."""
-        agent_chatbot.set_role("anonymous")
+        agent_chatbot_legacy.set_role("anonymous")
         tag = _uid()
-        r = agent_chatbot.post("/api/v1/messages", json={
+        r = agent_chatbot_legacy.post("/api/v1/messages", json={
             "body": f"Assistant msg {tag}",
             "role": "assistant",
         })

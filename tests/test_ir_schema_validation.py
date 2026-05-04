@@ -367,7 +367,8 @@ class TestIRStructuralIntegrity:
         it silently denies all operations for that scope+content combo.
         """
         ir_data = _extract_ir_from_pkg(ir_file)
-        valid_verbs = {"VIEW", "CREATE", "UPDATE", "DELETE", "AUDIT"}
+        # v0.9.2 L3 added Verb.APPEND for conversation-field grants.
+        valid_verbs = {"VIEW", "CREATE", "UPDATE", "DELETE", "AUDIT", "APPEND"}
 
         empty_grants = []
         bad_verb_grants = []

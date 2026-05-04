@@ -83,10 +83,14 @@ class TestContentSchemaSingular:
             assert "singular" in content
 
     def test_singular_present_on_agent_chatbot(self, agent_chatbot_ir):
-        messages = [c for c in agent_chatbot_ir["content"]
-                    if c["name"]["snake"] == "messages"]
-        assert len(messages) == 1
-        assert messages[0]["singular"] == "message"
+        # v0.9.2 L11 refresh: agent_chatbot's user-facing content is
+        # `chat_threads` (singular `chat_thread`). The v0.9.1
+        # messages-collection shape is preserved at
+        # agent_chatbot_legacy.termin.
+        chat_threads = [c for c in agent_chatbot_ir["content"]
+                        if c["name"]["snake"] == "chat_threads"]
+        assert len(chat_threads) == 1
+        assert chat_threads[0]["singular"] == "chat_thread"
 
 
 # ═══════════════════════════════════════════════════════════════════════
