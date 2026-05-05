@@ -209,7 +209,8 @@ class ReferenceAdapter(RuntimeAdapter):
 
         async def mock_agent_loop_with_conversation(
             self_ai, system_prompt, messages, tools, execute_tool,
-            on_writeback, on_event=None, max_turns=20,
+            on_writeback, on_text_delta=None, on_text_end=None,
+            should_halt=None, on_event=None, max_turns=20,
         ):
             """v0.9.2 conversation-mode mock — runs the scripted
             ``tool_calls`` against the gated execute_tool, then writes

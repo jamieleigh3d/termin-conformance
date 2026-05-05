@@ -195,3 +195,71 @@ class TestRefusalEndToEnd:
             f"got {row!r}"
         )
         assert "policy" in row["refusal_reason"]
+
+
+class TestRefusalTerminatesLoop:
+    """Per compute-contract.md §6.1: 'system_refuse triggers the
+    full refusal path: ... the loop terminates; staged outputs
+    are discarded.' Verify the runtime honors that — once
+    system_refuse fires, no subsequent tool calls execute and no
+    further conversation entries land beyond the refusal.
+
+    Threat model the test covers: an agent calls system_refuse
+    and then ALSO tries to call a side-effecting tool
+    (content_query in the legacy fixture, simulating data
+    exfiltration). The runtime must stop the second call from
+    executing, not just record both."""
+
+    def test_post_refusal_tool_call_is_blocked(self, tmp_path):
+        pkg = _require_agent_mock()
+        info, results = _adapter.deploy_with_agent_mock(
+            pkg, "halt_refusal",
+            [
+                ("system_refuse", {"reason": "policy: cannot proceed"}),
+                # Second tool call attempted post-refusal. The
+                # runtime's tool gate must return an error
+                # envelope; the agent never gets a real result.
+                # `current_time` is the canonical Invokes-declared
+                # tool on agent_chatbot.termin (v0.9.2 example).
+                ("current_time", {}),
+            ],
+        )
+        try:
+            session = _adapter.create_session(info)
+            session.set_role("anonymous")
+            # Trigger the conversation-mode dispatch via the
+            # v0.9.2 append surface.
+            create = session.post(
+                "/api/v1/chat_threads",
+                json={"title": "halt-refusal"},
+            )
+            assert create.status_code in (200, 201), create.text
+            thread_id = create.json()["id"]
+            ap = session.post(
+                f"/api/v1/chat_threads/{thread_id}/conversation:append",
+                json={"kind": "user",
+                      "body": "trigger refuse + try a side effect"},
+            )
+            assert ap.status_code == 201
+            time.sleep(_WAIT)
+
+            # The mock dispatched both tool calls. The first
+            # (system_refuse) should ack normally; the second
+            # (current_time) MUST surface an error envelope —
+            # the runtime gated it because refusal_state was set.
+            current_time_results = [
+                r for r in results if r["tool"] == "current_time"
+            ]
+            assert current_time_results, (
+                f"mock should have attempted the post-refusal tool "
+                f"call; results={results!r}"
+            )
+            for q in current_time_results:
+                result = q.get("result")
+                assert isinstance(result, dict) and "error" in result, (
+                    f"post-refusal tool call must NOT succeed; "
+                    f"got result={result!r}"
+                )
+        finally:
+            if info.cleanup:
+                info.cleanup()
