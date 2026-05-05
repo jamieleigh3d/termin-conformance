@@ -30,7 +30,7 @@ When a Termin app declares one or more `conversation` fields and one or more ai-
 7. **Auto-write-back** the agent's actions per §11.5 of the design — final assistant text, tool_call entries, tool_result entries — each with `parent_id` set to the triggering user entry's id.
 8. **Strip `set_output`** from the tool surface on the conversation-mode dispatch path, because conversation-mode agents communicate by ending their turn naturally; declaring `Output into field` alongside `Conversation is` is a compile-time error (TERMIN-S061).
 9. **Substitute** the WARN-level audit log entry as the audit-trail surface for refusals (the v0.9.1 `compute_refusals` sidecar Content type is retired in v0.9.2 — see §6 below).
-10. **Append** a `kind: "assistant", type: "refusal"` entry to the conversation field on refusal, parent-linked to the triggering user entry, so the chat surface can render the refusal inline at source position.
+10. **Append** a `kind: "agent", type: "refusal"` entry to the conversation field on refusal, parent-linked to the triggering user entry, so the chat surface can render the refusal inline at source position. (Pre-rename data with `kind: "assistant"` continues to validate for back-compat reads; new writes use `agent`.)
 
 This spec defines that contract. The shapes in §3 (entry shape), §4 (Append verb), §5 (event payload), §6 (refusal surfaces), and §7 (kind → Anthropic mapping) are language-level invariants — every conforming runtime must produce the same observable behavior for the same source + deploy config + sequence of appended entries.
 
@@ -89,13 +89,15 @@ Every entry persisted on a conversation field has at minimum:
 
 ### 3.2 Closed kind enum
 
-Exactly five values are accepted on append:
+Six values are accepted on append:
 
 ```
-user, assistant, tool_call, tool_result, system_event
+user, agent, assistant, tool_call, tool_result, system_event
 ```
 
-Any other kind value MUST be rejected with a 400-class error on the REST surface (the reference runtime returns HTTP 400 with `code == "validation_error"`). The kind enum is closed because the §11.4 mapping table is also closed; opening it would break the runtime's ability to translate to provider-native shape.
+`agent` is the canonical kind for entries produced by an AI Agent (v0.9.2 close-out rename, 2026-05-05). `assistant` stays in the enum as a back-compat read shape so existing `chat_thread` data with the old kind value continues to validate; new production writes from the conversation-mode loop emit `agent`. Both materialize to Anthropic role="assistant" per §7.1, and chat-presentation renderers treat them identically.
+
+Any other kind value MUST be rejected with a 400-class error on the REST surface (the reference runtime returns HTTP 400 with `code == "validation_error"`). The kind enum is closed because the §7 mapping table is also closed; opening it would break the runtime's ability to translate to provider-native shape.
 
 ### 3.3 Optional per-kind fields
 
@@ -217,7 +219,7 @@ When a conversation-mode ai-agent compute auto-writes its turn back to the field
 1. **Capture** the reason and terminate the agent loop (no further provider calls for this invocation). "Terminate" is structural: the runtime MUST NOT execute additional tool calls in the same response, MUST NOT issue a new provider-call turn, and MUST NOT commit any further conversation entries via the auto-write-back path (text or tool entries). The implementation surface is two short-circuits — a `should_halt` callback the provider checks between turns + between mid-turn tool calls, and an on_writeback short-circuit in the runtime — plus a defensive tool-gate that returns an error envelope for any tool call that reaches the runtime after refusal_state is set (in case a future provider doesn't honor should_halt).
 2. **Set** the invocation outcome to `"refused"` and propagate that to any caller awaiting the AgentResult.
 3. **Write a WARN-level audit log entry** with at minimum: `compute_name`, `invocation_id`, `reason`, `refused_at`, `invoked_by_principal_id`, `on_behalf_of_principal_id`. This is the **audit-trail surface** — operations dashboards and reflection queries read from here.
-4. **Append a conversation entry** to the compute's `conversation_source` field of `kind: "assistant", type: "refusal", body: <reason>` with `parent_id` set to the triggering user entry's id. This is the **chat surface** — providers render it inline at source position, distinguished as a refusal but rooted in the assistant's voice. This entry is the LAST commit on the field for this invocation; per §6.1 above, no other auto-write-back entries land after `system.refuse` fires.
+4. **Append a conversation entry** to the compute's `conversation_source` field of `kind: "agent", type: "refusal", body: <reason>` with `parent_id` set to the triggering user entry's id. This is the **chat surface** — providers render it inline at source position, distinguished as a refusal but rooted in the AI Agent's voice. This entry is the LAST commit on the field for this invocation; per §6.1 above, no other auto-write-back entries land after `system.refuse` fires. (Pre-rename data with `kind: "assistant"` continues to render correctly for back-compat reads.)
 
 **Why termination matters** (not just "the spec says so"): the platform's enforcement-over-vigilance promise (Termin Tenet 2) depends on `system.refuse` being a hard stop. If the agent could refuse and then continue — calling more tools, mutating content, generating more text — the refusal becomes advisory and the actual harms (data exfiltration, state mutations, audit incoherence between `outcome="refused"` and post-refusal entries) still happen. The runtime is the enforcement point; refusal MUST be enforced.
 
@@ -234,7 +236,7 @@ Verified against the official Anthropic API docs ([Tool use](https://platform.cl
 | Termin kind | Anthropic role | Anthropic content block(s) |
 |-------------|----------------|----------------------------|
 | `user` | `user` | `{"type": "text", "text": <body>}` plus image/document blocks for any attachments per §7.3 |
-| `assistant` | `assistant` | `{"type": "text", "text": <body>}`. The `type == "refusal"` discriminator is **not** sent to Anthropic — refusal-type assistant entries map identically to response-type ones; the discrimination is for Termin's audit and chat rendering only. |
+| `agent` (canonical) / `assistant` (back-compat) | `assistant` | `{"type": "text", "text": <body>}`. The `type == "refusal"` discriminator is **not** sent to Anthropic — refusal-type entries map identically to response-type ones; the discrimination is for Termin's audit and chat rendering only. Both `agent` and `assistant` accepted on input; both map to the same Anthropic role. |
 | `tool_call` | `assistant` | `{"type": "tool_use", "id": <tool_call_id>, "name": <tool_name>, "input": <tool_args>}` |
 | `tool_result` | `user` | `{"type": "tool_result", "tool_use_id": <tool_call_id>, "content": <body>, "is_error": <true if outcome was error, else absent>}` |
 | `system_event` | `user` | `{"type": "text", "text": "[" + source + "] " + <body>}` (the source-prefix wrapper makes the in-band context distinguishable from real user input) |
@@ -265,7 +267,7 @@ The runtime auto-writes the agent's actions in source order:
 
 - **For each tool call the agent made on a turn** → one `kind: "tool_call"` entry with `tool_call_id` from the provider's response, `tool_name`, `tool_args` (with `purpose` stripped — see below), and `body` set to `"<tool_name>(<json args>)"`. The structured fields hold the data; body is the at-a-glance summary. Body is not truncated. When the agent supplied a `purpose` arg, the runtime persists a hard-truncated form (12-word cap, ellipsis when over) on the entry; chat UIs that want a short label use it, falling back to `body` when absent.
 - **For each tool result returned by the runtime to the agent** → one `kind: "tool_result"` entry linked by `tool_call_id`, with `body` set to the result text. `is_error: true` on tool execution failures. (No `purpose` on tool_result.)
-- **For the agent's final assistant text on natural turn end** → one `kind: "assistant"` entry (no `type` field) with the text in `body`.
+- **For the agent's final text on natural turn end** → one `kind: "agent"` entry (no `type` field) with the text in `body`. (Pre-rename `kind: "assistant"` continues to validate.)
 
 All entries written by the auto-write-back pipeline carry the same `parent_id` (the user entry that triggered the agent), so reviewers can reconstruct turn boundaries.
 

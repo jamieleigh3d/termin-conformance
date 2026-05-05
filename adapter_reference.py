@@ -244,12 +244,14 @@ class ReferenceAdapter(RuntimeAdapter):
                     })
             # If the script didn't terminate via system_refuse (which
             # owns the entry on its side per L7.4), write a deterministic
-            # assistant reply so downstream tests can observe the §11.5
-            # write-back path.
+            # agent reply so downstream tests can observe the §11.5
+            # write-back path. v0.9.2 close-out (2026-05-05) rename:
+            # canonical kind for AI Agent entries is `agent` (was
+            # `assistant` pre-rename); both still validate.
             refused = any(tn == "system_refuse" for tn, _ in tool_calls)
             if not refused:
                 await on_writeback(
-                    kind="assistant",
+                    kind="agent",
                     body="mock agent reply",
                 )
             return {"thinking": "mock agent completed",

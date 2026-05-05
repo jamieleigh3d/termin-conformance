@@ -324,7 +324,10 @@ class TestAppendedEventDispatchesAgent:
                     f"/api/v1/chat_threads/{thread_id}").json(),
                 "conversation")
             kinds = [e["kind"] for e in entries]
-            assert kinds == ["user", "assistant"], entries
+            # v0.9.2 close-out (2026-05-05) rename: refusal entries
+            # use the new canonical `agent` kind; `assistant`
+            # remains accepted as a back-compat read shape.
+            assert kinds == ["user", "agent"], entries
             # § 5.5: parent_id linkage.
             assert entries[1].get("parent_id") == user_entry["id"]
         finally:
@@ -372,7 +375,10 @@ class TestRefusalAppendedToConversation:
                     f"/api/v1/chat_threads/{thread_id}").json(),
                 "conversation")
             kinds = [e["kind"] for e in entries]
-            assert kinds == ["user", "assistant"], entries
+            # v0.9.2 close-out (2026-05-05) rename: refusal entries
+            # use the new canonical `agent` kind; `assistant`
+            # remains accepted as a back-compat read shape.
+            assert kinds == ["user", "agent"], entries
             assert entries[1].get("type") == "refusal"
             assert entries[1].get("body") == (
                 "off-policy fabrication request")
