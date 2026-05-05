@@ -1,6 +1,6 @@
 # Termin Conformance Suite
 
-Conformance test suite and specification for the Termin runtime. Contains the IR JSON Schema, Runtime Implementer's Guide, package format spec, test `.termin.pkg` fixtures, and the v0.9.1 behavioral test suite (1036 passing on the reference runtime + 10 Playwright browser tests on the `served-reference` adapter; 32 skipped depend on optional adapters or are gated on v0.10 implementations like `queue-and-retry`). Everything needed to build and validate a conforming Termin runtime.
+Conformance test suite and specification for the Termin runtime. Contains the IR JSON Schema, Runtime Implementer's Guide, package format spec, test `.termin.pkg` fixtures, and the v0.9.2 behavioral test suite (1066 passing on the reference runtime + 10 Playwright browser tests on the `served-reference` adapter; 32 skipped depend on optional adapters or are gated on v0.10 implementations like `queue-and-retry` and the live-HTTP adapter). Everything needed to build and validate a conforming Termin runtime.
 
 ## What's Inside
 
@@ -132,14 +132,43 @@ The v0.8 round-trip fixture lives at `fixtures/migrations/v08_round_trip/` and w
 
 ## Specifications
 
-- **[IR JSON Schema](specs/termin-ir-schema.json)** — Machine-readable contract defining the structure of compiled Termin applications (IR version 0.9.0)
+- **[IR JSON Schema](specs/termin-ir-schema.json)** — Machine-readable contract defining the structure of compiled Termin applications (IR version 0.9.2)
+- **[Conversation Field Contract](specs/conversation-field-contract.md)** — v0.9.2: typed message-log primitive — entry shape, append-handler contract, event publish, refusal envelope + termination semantics, materialize-to-Anthropic translation, kind ↔ role mapping table, auto-write-back, Invokes runtime wiring, streaming contract
 - **[Runtime Implementer's Guide](specs/termin-runtime-implementers-guide.md)** — How to build a conforming runtime: storage, access control, state machines, events, presentation, CEL expressions, WebSocket protocol, behavioral contract
 - **[Package Format](specs/termin-package-format.md)** — `.termin.pkg` ZIP structure, manifest versioning, checksums, revision tracking
 - **[Migration Contract](specs/migration-contract.md)** — Language-level migration semantics: 5-tier risk classification, operator ack workflow (per-change fingerprints + dev-mode blanket flag), provider `migrate()` contract (atomicity, idempotency, fault injection), cross-version migration story (v0.8 → v0.9), conformance test methodology
 
 ## IR Version
 
-Current: **0.9.0** (released; conformance pack at 0.9.1 — IR schema unchanged between 0.9.0 and 0.9.1)
+Current: **0.9.2** (released 2026-05-05; additive bump from 0.9.0 — new
+base types `structured` + `conversation`, `Verb.APPEND`, append `RouteSpec`,
+optional `ComputeSpec.conversation_source`, `WhenRuleSpec.actions` list,
+`ConversationContext`. v0.9.0 / v0.9.1 sources and runtimes continue to
+work unchanged.)
+
+### v0.9 release arc
+
+- **0.9.0** (2026-04-30) — opening v0.9 release. Phase 7 of the v0.9
+  Termin milestone split the runtime out of `termin-compiler` into the
+  new `termin-core` (contracts) + `termin-server` (FastAPI hosting layer)
+  packages. Conformance pack at 0.9.0 covered the new layered topology.
+- **0.9.1** (2026-05-01) — conformance pack expansion + spec-tightening.
+  Added the Phase 3 compute-provider conformance pack (~1100-line spec
+  + 45 adapter-tested assertions across 5 files) and the Phase 4
+  channel-provider pack (~900-line spec + 77 assertions across 5 files).
+  Made the `surface-as-error` failure-mode contract deterministic
+  rather than conditional. IR schema unchanged at 0.9.0.
+- **0.9.2** (2026-05-05) — conversation-field contract. New
+  `specs/conversation-field-contract.md` (~700 lines covering entry
+  shape, append handler, event publish, refusal semantics,
+  materialize-to-Anthropic translation, kind/role mapping, §11.5
+  auto-write-back, §12 Invokes runtime wiring, §16 streaming).
+  `tests/test_v092_conversation_field.py` adds 45 tests for the
+  shape-level contracts; `tests/test_v09_compute_refusal.py` adds 12
+  tests pinning the `system_refuse` → terminate-loop contract. Fixture
+  regeneration includes `agent_chatbot.termin.pkg` (v0.9.2 shape) and
+  `agent_chatbot_legacy.termin.pkg` (v0.9.1 messages-table shape, kept
+  for back-compat coverage). 1066 passing, 32 skipped, 0 failed.
 
 ### 0.7.0 (April 2026)
 

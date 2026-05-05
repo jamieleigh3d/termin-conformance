@@ -1,5 +1,88 @@
 # Changelog
 
+## [0.9.2] — 2026-05-05
+
+Conversation-field conformance release. Pins the cross-runtime
+contracts for the v0.9.2 IR + runtime additions: the conversation
+field shape, the `POST <resource>/{id}/<field>:append` handler, the
+materialize-to-Anthropic translation, the §11.5 auto-write-back
+contract, the `system_refuse(reason)` → terminate-loop contract,
+and the `assistant` → `agent` kind rename (with `assistant` accepted
+as legacy back-compat).
+
+`ir_version` bumps to **0.9.2** to match the additive IR shape
+changes upstream in `termin-core`. All v0.9.1 fixtures regenerate
+cleanly through the v0.9.2 IR schema.
+
+### Added
+
+- **`specs/conversation-field-contract.md`** — ~700-line spec
+  covering the conversation-field type. §3 (entry shape + closed
+  kind enum), §4 (append-handler contract), §5 (event publish
+  contract on the `content.<source>.<field>.appended` channel),
+  §6 (refusal envelope + termination semantics, with "Why
+  termination matters" — the data-exfiltration / audit-incoherence
+  cases that motivate the §6.1 hard-stop), §7 (mapping table for
+  kind ↔ Anthropic role with the `agent` canonical / `assistant`
+  back-compat note), §11.5 (auto-write-back), §12 (Invokes
+  runtime wiring + `purpose` field), §16 (streaming contract).
+- **L12 cross-runtime conformance pack** —
+  `tests/test_v092_conversation_field.py` (45 tests covering the
+  shape-level contracts, kind validation, handler authorization,
+  event publish, materialization), plus
+  `tests/test_v09_compute_refusal.py` (12 tests pinning the
+  `system_refuse` termination contract: the refusal entry lands
+  with `kind="agent"` `type="refusal"`, no further entries are
+  appended for the same invocation, the audit row carries the
+  refusal reason verbatim, the refusal does NOT block subsequent
+  invocations of the same compute against the same conversation).
+- **Refusal-terminates-loop enforcement** in
+  `tests/test_v09_compute_refusal.py::test_no_orphan_tool_calls`.
+  Asserts that a `system_refuse` invocation never leaves an
+  orphan `tool_call` entry in the conversation — the refusal
+  short-circuit must skip the tool_call write-back so the next
+  agent turn doesn't fail Anthropic's tool-pairing validation.
+  Catches the v0.9.2 close-out bug JL hit during manual testing.
+- **`agent` ↔ `assistant` back-compat coverage** in
+  `tests/test_v092_conversation_field.py`. Exercises both kinds
+  through the materializer, validator, and chat-render mapping;
+  asserts new writes use `agent` while legacy `assistant`
+  entries continue to round-trip.
+- **`purpose` + `Invokes` conformance** in the same file.
+  Asserts that `Invokes "X"` in an `ai-agent` Compute registers
+  `X` as a tool with the gating from `X`'s access rules, and
+  that tool_call entries carry the `purpose` description (≤6
+  words display, hard-truncated at 12 with ellipses).
+- **agent_chatbot fixture regeneration** with the v0.9.2 shape:
+  `chat_threads` content, `conversation` field, dot-syntax
+  append access rule, `Conversation is chat_threads.conversation`
+  on the agent compute, `Invokes "current_time"`, chat
+  presentation binding. The v0.9.1 messages-table form is
+  preserved as `agent_chatbot_legacy.termin.pkg` so the
+  back-compat path stays exercised.
+
+### Changed
+
+- **`specs/termin-ir-schema.json`** updated for `ir_version: 0.9.2`
+  with the new base types, `Verb.APPEND`, append-route shape,
+  `ComputeSpec.conversation_source`, action-list shape on
+  `WhenRuleSpec`, and the closed kind enum extension.
+- **`adapter_reference.py::mock_agent_loop_with_conversation`**
+  accepts `on_text_delta`, `on_text_end`, `should_halt` kwargs;
+  the mock writes `kind="agent"` for the synthetic reply per the
+  rename. Existing `mock_agent_loop` entry point still accepted
+  for non-conversation tests.
+
+### Suite
+
+1066 tests passing on Windows (was 1036; +30 from L12 + close-out
+packs), 32 skipped (unchanged from v0.9.1 — v0.10-deferred
+`queue-and-retry` worker tests + the live-HTTP adapter slot still
+account for the skips), 0 failed. Suite runtime ~55s on the reference
+adapter. Live-HTTP adapter still deferred to v0.10 per the
+roadmap; the served-reference + reference adapters cover the
+v0.9.2 contract.
+
 ## [0.9.1] — 2026-05-01
 
 Conformance pack expansion + spec-tightening release. Closes the
