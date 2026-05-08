@@ -26,9 +26,9 @@ import asyncio
 
 import pytest
 
-from termin_server.channels import ChannelDispatcher
-from termin_server.channel_config import ChannelConfigError
-from termin_server.providers import (
+from termin_core.channels import ChannelDispatcher
+from termin_core.channel_config import ChannelConfigError
+from termin_core.providers import (
     Category, ContractRegistry, ProviderRegistry,
 )
 from termin_server.providers.builtins import register_builtins

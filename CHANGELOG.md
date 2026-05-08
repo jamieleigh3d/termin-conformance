@@ -1,5 +1,63 @@
 # Changelog
 
+## [0.9.3] — 2026-05-07
+
+The runtime extraction conformance release. No spec changes — the
+v0.9.2 spec set (`presentation-contract.md`,
+`compute-provider-design.md`, `channel-contract.md`,
+`storage-contract.md`, `identity-contract.md`,
+`conversation-field-contract.md`, `refusal-terminates-loop.md`)
+remains the contract. This release adds the alt-runtime
+import-stability test pack and updates the existing test imports
+to match v0.9.3's shim-free layout. Tech design at
+`termin-compiler/docs/termin-v0.9.3-runtime-extraction-tech-design.md`.
+
+### Added
+
+- **`tests/test_alt_runtime_imports.py`** — 55-test pack pinning
+  the alt-runtime-facing public surface of `termin-core`. Three
+  sections:
+  1. Functional smoke tests for every newly-exposed name
+     (`EventBus`, `Scheduler`, `Transaction`, `ReflectionEngine`,
+     `boundaries.*`, `colorblind.*`, `sanitize_markdown`, all
+     migrations modules, channels triplet, `build_compute_js`,
+     `extract_page_reqs`, all routing handlers + RouteSpec value
+     types + `build_route_specs` + `dispatch_http_request` +
+     `append_to_field`, `materialize_to_anthropic` and friends,
+     plus the existing Provider Protocols).
+  2. A small functional round-trip on `materialize_to_anthropic`
+     (verifies `agent` kind maps to Anthropic role `assistant`).
+  3. The **anti-shim guard** — 26 parametrized cases asserting
+     that no `termin_server.X` re-export shim exists for code
+     that moved to `termin-core` in v0.9.3 or earlier. Catches a
+     future slip-up where someone adds a shim back "for
+     compatibility."
+
+### Changed
+
+- 10 existing test files updated to import from `termin_core.X`
+  instead of `termin_server.X` (the slice 7.1 shim layer was
+  retired in v0.9.3 per the no-shims policy):
+  - `test_v09_channel_*.py` (4 files)
+  - `test_v09_migration_*.py` (5 files)
+  - `test_v09_presentation_provider.py`
+
+### Test counts
+
+- **1121 passing, 22 skipped** (was 1066 passing, 32 skipped at
+  v0.9.2). +55 from the new alt-runtime-imports pack; some
+  previously-skipped cases now run as a side-effect of the import
+  surface changes.
+
+### For alt-runtime authors
+
+The conformance suite now ships a standing-contract surface you can
+import-test against `termin-core>=0.9.3` without depending on
+`termin-server`. If your runtime re-implements any module in
+`termin_core` (e.g., your own storage backend, your own ai-agent
+provider), the import-stability pack catches accidental name
+relocations in subsequent core releases.
+
 ## [0.9.2] — 2026-05-05
 
 Conversation-field conformance release. Pins the cross-runtime

@@ -30,10 +30,10 @@ from __future__ import annotations
 
 import pytest
 
-from termin_server.migrations.ack import (
+from termin_core.migrations.ack import (
     ack_covers, missing_acks, fingerprint_change, collect_required_fingerprints,
 )
-from termin_server.providers.storage_contract import (
+from termin_core.providers.storage_contract import (
     MigrationDiff, ContentChange, FieldChange,
 )
 

@@ -30,10 +30,10 @@ from typing import Any, Mapping, Sequence
 import pytest
 
 from termin_server.providers.builtins.storage_sqlite import SqliteStorageProvider
-from termin_server.providers.storage_contract import (
+from termin_core.providers.storage_contract import (
     Eq, QueryOptions, MigrationDiff, ContentChange, FieldChange,
 )
-from termin_server.migrations.classifier import (
+from termin_core.migrations.classifier import (
     compute_migration_diff, apply_rename_mappings, downgrade_for_empty_tables,
 )
 from termin_server import storage as _storage

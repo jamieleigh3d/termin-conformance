@@ -25,14 +25,14 @@ from pathlib import Path
 import pytest
 
 from termin_server.providers.builtins.storage_sqlite import SqliteStorageProvider
-from termin_server.providers.storage_contract import (
+from termin_core.providers.storage_contract import (
     Eq, QueryOptions, MigrationDiff, ContentChange, FieldChange,
 )
-from termin_server.migrations.classifier import (
+from termin_core.migrations.classifier import (
     compute_migration_diff, apply_rename_mappings, downgrade_for_empty_tables,
 )
-from termin_server.migrations.introspect import introspect_sqlite_schema
-from termin_server.migrations.ack import ack_covers, missing_acks
+from termin_core.migrations.introspect import introspect_sqlite_schema
+from termin_core.migrations.ack import ack_covers, missing_acks
 from termin_server import storage as _storage
 
 # Reuse helpers from the apply test file.
@@ -107,7 +107,7 @@ class TestEndToEndWithinV09:
                                   field("token")])]
         diff = compute_migration_diff(pre_ir, post_ir)
 
-        from termin_server.migrations.ack import collect_required_fingerprints
+        from termin_core.migrations.ack import collect_required_fingerprints
         fps = collect_required_fingerprints(diff)
         config = {"accepted_changes": list(fps)}
         assert ack_covers(diff, config)

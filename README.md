@@ -169,6 +169,19 @@ work unchanged.)
   regeneration includes `agent_chatbot.termin.pkg` (v0.9.2 shape) and
   `agent_chatbot_legacy.termin.pkg` (v0.9.1 messages-table shape, kept
   for back-compat coverage). 1066 passing, 32 skipped, 0 failed.
+- **0.9.3** (2026-05-07) — runtime extraction conformance. No spec
+  changes (the v0.9.2 spec set is the contract); adds the
+  alt-runtime import-stability test pack
+  (`tests/test_alt_runtime_imports.py`, 55 tests) pinning the new
+  `termin-core` public surface that alt runtimes can build on
+  without depending on `termin-server`. Includes a 26-case
+  parametrized anti-shim guard asserting that no `termin_server.X`
+  re-export shim exists for code that moved to `termin-core` in
+  v0.9.3 or earlier — catches a future slip-up where someone adds a
+  shim back "for compatibility." Existing test files updated to
+  import from `termin_core.X` directly (the slice 7.1 shim layer in
+  `termin-server` was retired in v0.9.3 per the no-shims policy).
+  1121 passing, 22 skipped, 0 failed.
 
 ### 0.7.0 (April 2026)
 

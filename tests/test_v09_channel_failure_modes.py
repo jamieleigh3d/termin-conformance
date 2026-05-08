@@ -39,8 +39,8 @@ import asyncio
 
 import pytest
 
-from termin_server.channels import ChannelDispatcher
-from termin_server.providers import (
+from termin_core.channels import ChannelDispatcher
+from termin_core.providers import (
     Category, ContractRegistry, ProviderRegistry,
 )
 from termin_server.providers.builtins import register_builtins
@@ -152,7 +152,7 @@ class TestLogAndDropDefault:
         failures, NOT to programming errors. A send to a channel
         name that doesn't exist in the IR is a programming error
         and MUST raise."""
-        from termin_server.channel_config import ChannelError
+        from termin_core.channel_config import ChannelError
         ir = _ir(_ch("alerts", "webhook"))
         deploy = _deploy("alerts", _binding())
         d = ChannelDispatcher(ir, deploy, _registry())
@@ -186,7 +186,7 @@ class TestSurfaceAsError:
     trail preserves the upstream error message."""
 
     def test_provider_exception_re_raises_as_channel_error(self):
-        from termin_server.channel_config import ChannelError
+        from termin_core.channel_config import ChannelError
 
         ir = _ir(_ch("alerts", "webhook", failure_mode="surface-as-error"))
         deploy = _deploy("alerts", _binding())
@@ -209,7 +209,7 @@ class TestSurfaceAsError:
         exception object on __cause__. Ops tooling that walks
         the exception chain (e.g., structured loggers, audit
         emitters) needs this to surface the upstream message."""
-        from termin_server.channel_config import ChannelError
+        from termin_core.channel_config import ChannelError
 
         ir = _ir(_ch("alerts", "webhook", failure_mode="surface-as-error"))
         deploy = _deploy("alerts", _binding())

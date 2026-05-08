@@ -59,7 +59,7 @@ def _fake_provider_registry(
     the given contracts under `product_name`. The factory returns a
     new MagicMock each call so caching tests can count instances.
     """
-    from termin_server.providers import (
+    from termin_core.providers import (
         Category, ContractRegistry, ProviderRegistry,
     )
     contracts = ContractRegistry.default()
@@ -80,7 +80,7 @@ def _fake_provider_registry(
 
 
 def _presentation_base_contracts() -> tuple[str, ...]:
-    from termin_server.providers.presentation_contract import (
+    from termin_core.providers.presentation_contract import (
         PRESENTATION_BASE_CONTRACTS,
     )
     return tuple(f"presentation-base.{n}" for n in PRESENTATION_BASE_CONTRACTS)
@@ -92,7 +92,7 @@ def test_presentation_provider_protocol_runtime_checkable():
     """A simple object with declared_contracts + render_modes +
     render_ssr + csr_bundle_url MUST satisfy isinstance against
     PresentationProvider Protocol."""
-    from termin_server.providers.presentation_contract import (
+    from termin_core.providers.presentation_contract import (
         PresentationProvider,
     )
 
@@ -114,7 +114,7 @@ def test_presentation_base_namespace_has_ten_contracts():
     contracts — page, text, markdown, data-table, form, chat, metric,
     nav-bar, toast, banner. Conforming runtimes MUST recognize all
     ten."""
-    from termin_server.providers.presentation_contract import (
+    from termin_core.providers.presentation_contract import (
         PRESENTATION_BASE_CONTRACTS,
     )
     expected = {
@@ -128,7 +128,7 @@ def test_redacted_sentinel_distinct_from_none_and_empty():
     """Field-level redaction marker (BRD §7.6) MUST be a distinct
     sentinel — providers must be able to discriminate redaction from
     natural absence (None / "" / 0 / False)."""
-    from termin_server.providers.presentation_contract import (
+    from termin_core.providers.presentation_contract import (
         Redacted, is_redacted,
     )
     r = Redacted(field_name="ssn", expected_type="text")
@@ -144,7 +144,7 @@ def test_redacted_json_default_produces_wire_shape():
     `__redacted: true` discriminator so CSR providers can detect it
     over the wire without inspecting Python type tags."""
     import json
-    from termin_server.providers.presentation_contract import (
+    from termin_core.providers.presentation_contract import (
         Redacted, redacted_json_default,
     )
     r = Redacted(field_name="salary", expected_type="currency", reason="hr.salary")
@@ -287,7 +287,7 @@ def test_default_tailwind_synthesis_when_no_binding():
     """No presentation binding MUST synthesize a default
     `tailwind-default` binding for presentation-base."""
     from termin_server.app import _populate_presentation_providers
-    from termin_server.providers import (
+    from termin_core.providers import (
         Category, ContractRegistry, ProviderRegistry,
     )
     from termin_server.providers.builtins.presentation_tailwind_default import (
@@ -372,10 +372,10 @@ def test_package_namespace_binding_fans_out_via_registry(tmp_path):
     from termin.contract_packages import (
         load_contract_packages_into_registry,
     )
-    from termin_server.providers.contracts import (
+    from termin_core.providers.contracts import (
         Category, ContractDefinition, Tier,
     )
-    from termin_server.providers import (
+    from termin_core.providers import (
         ContractRegistry, ProviderRegistry,
     )
 
