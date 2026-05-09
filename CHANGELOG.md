@@ -1,5 +1,37 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **3 new tests in
+  ``tests/test_alt_runtime_imports.py`` (Section 10) pinning the
+  storage-Protocol shape contract for ``append_to_field``
+  (issue #5).** The framework-free
+  ``termin_core.routing.append.append_to_field`` helper alt
+  runtimes use to implement the Append CRUD verb must work
+  end-to-end against any storage provider that conforms to the
+  v0.9 ``StorageProvider`` Protocol — including providers that
+  return / accept native Python lists for list-typed columns
+  (DynamoDB Lists, Postgres JSONB, in-memory test doubles), not
+  only the SQLite reference runtime's JSON-text shape. The new
+  tests use an in-test fake storage stand-in to exercise the
+  helper directly, so they pass on any environment where
+  ``termin-core`` is importable (no runtime stand-up required).
+  Test count moves from 55 → 58 in the pack; total conformance
+  count moves from 1121 → 1124 passing on the in-process
+  ``reference`` adapter.
+
+### Compatibility
+
+- Spec unchanged. The added tests pin contract behavior that was
+  *implied* by the v0.9 ``StorageProvider`` Protocol and the
+  v0.9.2 conversation-field contract but had no explicit
+  cross-runtime test coverage. They fire only on an alt runtime
+  whose storage layer returns native Python lists; the SQLite
+  reference runtime continues to pass without changes (the
+  helper's read path accepts both shapes by design).
+
 ## [0.9.3] — 2026-05-07
 
 The runtime extraction conformance release. No spec changes — the

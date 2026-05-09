@@ -329,7 +329,147 @@ def test_provider_contracts_importable_from_core():
     assert "page" in PRESENTATION_BASE_CONTRACTS
 
 
-# ── 9. Anti-shim guard ──
+# ── 10. Storage-Protocol shape contract for append_to_field (Issue #5) ──
+#
+# The framework-free ``append_to_field`` helper in
+# ``termin_core.routing.append`` is the v0.9.3 building block alt
+# runtimes use to implement the Append CRUD verb. Before Issue #5
+# (filed 2026-05-08) it hardcoded SQLite-shaped JSON-text
+# serialization on both directions, which broke any storage provider
+# that returns / accepts native Python lists for list-typed columns
+# (DynamoDB, Postgres JSONB, in-memory test doubles).
+#
+# These tests pin the storage-shape contract for alt-runtime authors:
+#
+#   * Read path MUST accept either a native list or a JSON-text string
+#     for the conversation/structured field. None / empty / malformed
+#     all degrade to a fresh empty list.
+#   * Write path MUST pass a native list to ``ctx.storage.update`` —
+#     each storage implementation owns its own serialization.
+#
+# Adapter-agnostic by construction: these exercise the helper directly
+# against an in-test fake StorageProvider, so they pass on any
+# environment where ``termin-core`` is importable (no runtime stand-up
+# required).
+
+
+class _NativeListStorage:
+    """In-test storage stand-in that returns the field as a native
+    Python list — the contract shape an alt runtime backed by
+    DynamoDB / Postgres JSONB / etc. would deliver."""
+
+    def __init__(self, records=None):
+        self._records = {k: dict(v) for k, v in (records or {}).items()}
+        self.last_patch = None
+
+    async def read(self, content_type, key):
+        rec = self._records.get((content_type, key))
+        return dict(rec) if rec is not None else None
+
+    async def update(self, content_type, key, patch):
+        self.last_patch = dict(patch)
+        rec = self._records.get((content_type, key))
+        if rec is None:
+            return None
+        rec.update(patch)
+        return dict(rec)
+
+
+class _CtxStub:
+    def __init__(self, storage):
+        self.storage = storage
+
+
+def test_issue5_append_accepts_native_list_storage():
+    """An alt runtime's storage may return list-typed columns as
+    native Python lists; ``append_to_field`` must merge into them
+    without crashing on json.loads(list)."""
+    import asyncio
+    from termin_core.routing import append_to_field
+
+    storage = _NativeListStorage(records={
+        ("ticket", "t1"): {"id": "t1", "messages": [
+            {"id": "e1", "kind": "user", "body": "first"},
+        ]},
+    })
+    ctx = _CtxStub(storage)
+    entry = asyncio.get_event_loop().run_until_complete(
+        append_to_field(
+            ctx, content_ref="ticket", key_val="t1",
+            field_name="messages",
+            payload={"kind": "user", "body": "second"},
+            user={"id": "alice"},
+        )
+    )
+    assert entry["body"] == "second"
+
+
+def test_issue5_append_writes_native_list_to_storage():
+    """``ctx.storage.update`` MUST receive a native Python list as the
+    patch value for the conversation field — never a pre-serialized
+    JSON string. Each storage implementation owns its own
+    serialization (BRD §6.2 / Provider contract on ``storage.update``).
+    """
+    import asyncio
+    from termin_core.routing import append_to_field
+
+    storage = _NativeListStorage(records={
+        ("ticket", "t1"): {"id": "t1", "messages": []},
+    })
+    ctx = _CtxStub(storage)
+    asyncio.get_event_loop().run_until_complete(
+        append_to_field(
+            ctx, content_ref="ticket", key_val="t1",
+            field_name="messages",
+            payload={"kind": "user", "body": "hello"},
+            user={"id": "alice"},
+        )
+    )
+    assert storage.last_patch is not None
+    patched = storage.last_patch["messages"]
+    assert isinstance(patched, list), (
+        f"expected native list patch (Issue #5 contract), "
+        f"got {type(patched).__name__}: {patched!r}"
+    )
+    assert len(patched) == 1
+    assert patched[0]["body"] == "hello"
+
+
+def test_issue5_append_accepts_json_string_storage_legacy_shape():
+    """SQLite-shaped storage (the reference runtime) returns the
+    column as a JSON-text string. Both shapes must keep working so a
+    runtime that switches storage backends mid-deploy doesn't break.
+    """
+    import asyncio
+    import json as _json
+    from termin_core.routing import append_to_field
+
+    storage = _NativeListStorage(records={
+        ("ticket", "t1"): {"id": "t1", "messages": _json.dumps([
+            {"id": "e1", "kind": "user", "body": "first"},
+        ])},
+    })
+    ctx = _CtxStub(storage)
+    entry = asyncio.get_event_loop().run_until_complete(
+        append_to_field(
+            ctx, content_ref="ticket", key_val="t1",
+            field_name="messages",
+            payload={"kind": "user", "body": "second"},
+            user={"id": "alice"},
+        )
+    )
+    # Even though the input shape was a JSON string, the patch the
+    # handler sent to storage.update is a native list — alt runtimes'
+    # storage layers can rely on receiving Python objects.
+    assert entry["body"] == "second"
+    patched = storage.last_patch["messages"]
+    assert isinstance(patched, list)
+    assert len(patched) == 2
+    assert patched[0]["body"] == "first"
+    assert patched[1]["body"] == "second"
+
+
+# ── 11. Anti-shim guard ──
 
 @pytest.mark.parametrize("module_name", [
     "termin_server.events",
