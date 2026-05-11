@@ -296,7 +296,10 @@ class TestSecurityAgentBootstrap:
             "affected_resource": "arn:aws:secretsmanager::secret/test",
         })
         fid = r.json()["id"]
-        r2 = security_agent.post(f"/api/v1/findings/{fid}/_transition/remediation/analyzing")
+        # v0.9.4: canonical transition path shape — top-level
+        # `/_transition/{content}/{machine}/{id}/{target}`. Closes
+        # termin-core #6 (4).
+        r2 = security_agent.post(f"/_transition/findings/remediation/{fid}/analyzing")
         assert r2.status_code == 200
 
     def test_create_scan_run(self, security_agent):

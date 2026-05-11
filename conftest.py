@@ -47,6 +47,38 @@ _adapter = _get_adapter()
 _deployed_apps = {}
 
 
+class _IdempotentCleanup:
+    """Wrap an AppInfo.cleanup callable so it runs at most once.
+
+    The session-scoped per-app fixtures (``warehouse``, ``agent_simple``,
+    etc.) yield then call ``app_info.cleanup()``. The ``*_ir`` fixtures
+    return the IR dict without a yield, so they never call cleanup —
+    which used to leak the TestClient's lifespan thread (a background
+    WebSocket forwarder asyncio task) at process shutdown. The
+    ``pytest_sessionfinish`` hook below now runs cleanup for every
+    cached deployment as a backstop, and this wrapper makes it safe to
+    call cleanup from both the per-app fixture AND the session hook
+    without double-entering TestClient's ``__exit__``.
+    """
+
+    def __init__(self, fn):
+        self._fn = fn
+        self._called = False
+
+    def __call__(self):
+        if self._called:
+            return
+        self._called = True
+        try:
+            self._fn()
+        except Exception:
+            # Swallow — the cleanup callable might be a TestClient
+            # __exit__ that complains about a re-entry race or an
+            # already-shut-down lifespan; the underlying threads
+            # have still been cancelled, which is what we care about.
+            pass
+
+
 def _get_app_session(app_name: str, cascade: bool = False):
     """Deploy an app (or reuse cached deployment) and return a session.
 
@@ -61,10 +93,36 @@ def _get_app_session(app_name: str, cascade: bool = False):
             raise FileNotFoundError(f"No .termin.pkg fixture for '{app_name}' in {base}")
 
         app_info = _adapter.deploy(fixture_path, app_name)
+        # Wrap cleanup so calling it twice (per-fixture + session
+        # finish) is a no-op. See _IdempotentCleanup docstring.
+        if app_info.cleanup is not None:
+            app_info.cleanup = _IdempotentCleanup(app_info.cleanup)
         session = _adapter.create_session(app_info)
         _deployed_apps[app_name] = (app_info, session)
 
     return _deployed_apps[app_name]
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Backstop: clean up any deployed apps whose fixtures didn't
+    yield-and-cleanup themselves.
+
+    Test files that only use the ``*_ir`` introspection fixtures
+    (e.g. ``test_ir_v050``) cache a deployed app under
+    ``_deployed_apps`` but never trigger the per-app fixture's
+    cleanup. The TestClient's lifespan thread keeps the WebSocket
+    forwarder asyncio task running, and Python's ``_python_exit``
+    hangs joining the worker thread.
+
+    Iterating ``_deployed_apps`` at session finish and calling each
+    cleanup once (idempotent — see ``_IdempotentCleanup``) catches
+    those leaked deployments without breaking the per-app fixtures
+    that do their own teardown.
+    """
+    for name, (app_info, _session) in list(_deployed_apps.items()):
+        if app_info.cleanup is not None:
+            app_info.cleanup()
+    _deployed_apps.clear()
 
 
 # ── Session-scoped fixtures: each app deployed once ──

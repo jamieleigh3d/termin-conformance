@@ -717,7 +717,10 @@ class TestStateMachineEdgeCases:
     def test_transition_changes_status_in_db(self, warehouse):
         """state.py: transition persists to storage."""
         pid = self._create_product(warehouse)
-        warehouse.post(f"/api/v1/products/{pid}/_transition/product_lifecycle/active")
+        # v0.9.4: canonical transition path shape — top-level
+        # `/_transition/{content}/{machine}/{id}/{target}`. Closes
+        # termin-core #6 (4).
+        warehouse.post(f"/_transition/products/product_lifecycle/{pid}/active")
         r = warehouse.get(f"/api/v1/products/{pid}")
         assert r.json().get("product_lifecycle") == "active"
 
@@ -725,7 +728,7 @@ class TestStateMachineEdgeCases:
         """state.py: rejected transition doesn't change state."""
         pid = self._create_product(warehouse)
         # draft -> discontinued requires going through active first
-        r = warehouse.post(f"/api/v1/products/{pid}/_transition/product_lifecycle/discontinued")
+        r = warehouse.post(f"/_transition/products/product_lifecycle/{pid}/discontinued")
         assert r.status_code in (409, 400, 403), f"Expected error, got {r.status_code}"
         r = warehouse.get(f"/api/v1/products/{pid}")
         assert r.json().get("product_lifecycle") == "draft"
@@ -733,10 +736,10 @@ class TestStateMachineEdgeCases:
     def test_reverse_transition_after_lifecycle(self, warehouse):
         """state.py: activate after discontinue."""
         pid = self._create_product(warehouse)
-        warehouse.post(f"/api/v1/products/{pid}/_transition/product_lifecycle/active")
-        warehouse.post(f"/api/v1/products/{pid}/_transition/product_lifecycle/discontinued")
+        warehouse.post(f"/_transition/products/product_lifecycle/{pid}/active")
+        warehouse.post(f"/_transition/products/product_lifecycle/{pid}/discontinued")
         # Check if reactivation is allowed
-        r = warehouse.post(f"/api/v1/products/{pid}/_transition/product_lifecycle/active")
+        r = warehouse.post(f"/_transition/products/product_lifecycle/{pid}/active")
         # Some state machines allow this, some don't
 
     def test_transition_to_nonexistent_state(self, warehouse):

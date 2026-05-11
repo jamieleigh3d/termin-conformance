@@ -2,6 +2,39 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Session-finish backstop cleanup for leaked TestClient lifespans.**
+  Test files that only used `*_ir` introspection fixtures (e.g.
+  `test_ir_v050.py`) deployed an app via `_get_app_session` but
+  never triggered the per-app fixture's `app_info.cleanup()` —
+  the per-app fixture wasn't requested. The TestClient's
+  lifespan thread (running a background WebSocket forwarder
+  asyncio task) was never cancelled, and Python's `_python_exit`
+  hung indefinitely joining the worker thread.
+
+  Added a `pytest_sessionfinish` hook in `conftest.py` that
+  iterates `_deployed_apps` at session teardown and calls each
+  cleanup once. Wrapped `app_info.cleanup` in a tiny idempotency
+  guard so the per-app fixtures and the session hook can both
+  call cleanup without double-entering TestClient's `__exit__`.
+
+  Full HTTP conformance run was unrunnable (hung) before this
+  fix; now 1124 passing, 22 skipped, 0 failing in 59s on the
+  in-process `reference` adapter.
+
+- **Three transition-path tests updated to v0.9.4 canonical
+  shape.** `test_runtime_coverage.py::test_transition_changes_status_in_db`,
+  `test_failed_transition_preserves_status`, and
+  `test_runtime_v050.py::test_transition_finding` were using
+  the legacy nested
+  `/api/v1/{content}/{id}/_transition/{machine}/{target}`
+  path. Updated to the canonical top-level
+  `/_transition/{content}/{machine}/{key}/{target}` shape
+  established by `termin-core` #6 (4). Companion `test_reverse_transition_after_lifecycle`
+  also updated for consistency (it was passing but used the
+  legacy shape).
+
 ### Added
 
 - **Implementer's Guide §3.5 — Two-Layer Security Model.** New
