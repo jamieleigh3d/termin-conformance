@@ -214,6 +214,53 @@ Routes may have their own `required_scope` in addition to AccessGrant checks:
 
 The runtime checks the route-level scope first, then the AccessGrant for the specific verb.
 
+### 3.5 Two-Layer Security Model
+
+Termin enforces access control at two independent layers. Both layers must pass for a request to reach the handler logic. Runtime implementers must wire both — checking one without the other leaves a security gap.
+
+**Layer 1 — Per-route scope (request-shape gate).**
+
+The `RouteSpec.required_scope` field on each route declares the scope a caller must hold to invoke that route at all. This is the URL-level gate: "callers without `write orders` can never POST to `/api/v1/orders`, regardless of which record they reference."
+
+The reference runtime enforces Layer 1 in two ways depending on how the adapter binds routes:
+
+  * **Via `dispatch_http_request(ctx, request)`** — the dispatcher enforces `required_scope` itself, returning 403 before the handler runs when the caller lacks the scope (or when `request.auth` is `None` and `required_scope` is set). Adapters that route through `dispatch_http_request` inherit enforcement automatically.
+  * **Via direct binding from `build_route_specs(ctx)`** — adapters that iterate the spec list and bind each spec to their framework's router must enforce `spec.required_scope` themselves before invoking `spec.handler`. The pattern is:
+
+    ```python
+    for spec in build_route_specs(ctx):
+        adapter.add_route(
+            method=spec.method,
+            path=spec.path,
+            handler=_with_scope_check(spec, ctx),
+        )
+
+    def _with_scope_check(spec, ctx):
+        async def handler(request):
+            if spec.required_scope is not None:
+                auth = getattr(request, "auth", None)
+                if auth is None or not auth.has_scope(spec.required_scope):
+                    return TerminResponse(status_code=403, ...)
+            return await spec.handler(request, ctx)
+        return handler
+    ```
+
+    A bare-binding adapter that skips this wrapper exposes every `required_scope`-gated route as publicly callable.
+
+**Layer 2 — Per-content boundary identity (record-shape gate).**
+
+The CRUD handlers in `termin_core.routing.crud` call `ctx._check_boundary_identity(ctx, content_ref, user_scopes)` at the top of each handler. This is the row-level gate: "even callers with `write orders` may only mutate orders within their boundary scope" (a `customer` Content scoped to `boundary("organization")` enforces that the caller's `organization_id` matches the row's `organization_id`).
+
+Where Layer 1 says "yes, you can call this route at all," Layer 2 says "yes, this specific row is in your boundary." They are complementary, not redundant: deleting Layer 1 means scope-gated routes become public; deleting Layer 2 means scope-holders can read or mutate records across boundaries they shouldn't see.
+
+`ctx._check_boundary_identity` is **optional** in the ctx Protocol — when not wired, the check is a no-op and Layer 2 is effectively absent. Runtimes that ship multi-tenant or scoped-data applications **must** wire it. See §6.5 for the signature.
+
+**Ordering and precedence.**
+
+Within a single request the runtime checks in this order: route match (404 if no path matches) → method match (405 if path matches but method doesn't) → Layer 1 scope (403 if route requires a scope the caller lacks) → handler runs → Layer 2 boundary (403 if the matched record is outside the caller's boundary) → AccessGrant verb check (403 if the caller lacks the verb scope for this Content) → business logic.
+
+Each later check assumes earlier checks passed. A runtime that returns 403 for a non-existent path is leaking the URL space; return 404 first.
+
 ---
 
 ## 4. State Machines
@@ -317,6 +364,100 @@ The `routes[]` array contains pre-resolved routes. Each route has:
 ### 6.3 Routes May Be Empty
 
 If `routes[]` is empty, the runtime should auto-generate CRUD routes for each Content based on AccessGrants. The reference runtime does this. Explicit routes override auto-generation.
+
+### 6.4 Dispatcher Contract (`dispatch_http_request`)
+
+`termin_core.routing.dispatch.dispatch_http_request(ctx, request)` is a convenience entry point for adapters that prefer single-entry dispatch over per-route binding. It accepts a `TerminRequest`, walks the cached route table, and invokes the matched handler.
+
+Adapters fall into two binding models:
+
+  * **Single-entry-point (catch-all) binding.** The adapter registers one ASGI route (or equivalent) that funnels every request through `dispatch_http_request`. Lower throughput overhead per route registration, no per-route framework metadata (OpenAPI tags, framework-level middleware per spec). Suitable for raw ASGI hosts or runtimes whose framework doesn't support dynamic route registration well.
+  * **Per-route binding.** The adapter iterates `build_route_specs(ctx)` and binds each spec to its framework's router (FastAPI `app.add_api_route`, Starlette routes, etc.). Higher per-route overhead, but per-route metadata, framework middleware, and OpenAPI generation work natively.
+
+The dispatcher's response-code precedence is **404 > 405 > 403 > handler**:
+
+  | Code | Meaning | When |
+  |---|---|---|
+  | 404 | No route matches the path | Path doesn't match any RouteSpec's pattern |
+  | 405 | Method not allowed | Path matches but method doesn't |
+  | 403 | Forbidden (Layer 1 scope) | Route matches but caller lacks `required_scope` |
+  | (handler) | Whatever the handler returns | Both gates passed |
+
+`dispatch_http_request` enforces Layer 1 scope automatically (see §3.5). Per-route-binding adapters must enforce it themselves before invoking each spec's handler — see §3.5 for the wrapper pattern.
+
+The dispatcher caches the route table on `ctx._route_specs_cache` after the first call; subsequent calls reuse it. Adapters that hot-reload IR must invalidate this cache on reload (`del ctx._route_specs_cache`).
+
+### 6.5 ctx Wiring Requirements
+
+The CRUD, append, channel, and compute handlers in `termin_core.routing` reach into the runtime context (`ctx`) for storage, identity checks, expression evaluation, and lifecycle hooks. Adapters must populate the required attributes; optional attributes have sensible defaults when absent.
+
+**Required (handlers crash without these):**
+
+  | Attribute | Type | Used by | Purpose |
+  |---|---|---|---|
+  | `ctx.storage` | StorageProvider | All CRUD + append handlers | `read`, `query`, `create`, `update`, `delete` |
+  | `ctx.content_lookup` | `dict[str, ContentSchema]` | All CRUD handlers | Field schemas keyed by content_ref |
+  | `ctx.sm_lookup` | `dict[str, list[StateMachineSpec]]` | CREATE, UPDATE, TRANSITION | State machines keyed by content_ref |
+  | `ctx.expr_eval` | CEL evaluator | CREATE, UPDATE, TRANSITION | Defaults, dependent values, transition conditions |
+  | `ctx.terminator` | Terminator | UPDATE (state changes), TRANSITION | Validates and applies state transitions |
+  | `ctx.event_bus` | EventBus | UPDATE (state changes), TRANSITION | Publishes state change events |
+  | `ctx.ir` | `dict` (compiled AppSpec) | `build_route_specs`, `dispatch_http_request` | Source of truth for routes |
+
+**Optional (getattr-defaulted):**
+
+  | Attribute | Default | Used by | Purpose |
+  |---|---|---|---|
+  | `ctx._check_boundary_identity(ctx, cr, scopes) -> str \| None` | `None` (no-op) | LIST, GET, CREATE, UPDATE, DELETE | Layer 2 boundary identity gate (§3.5). Returns an error message or None. Multi-tenant runtimes **must** wire this. |
+  | `ctx.row_filter_for(cr) -> dict \| None` | `None` (no filter) | LIST, GET, UPDATE, DELETE | Per-content row predicate restriction |
+  | `ctx.lookup_column_for(cr) -> str` | `"id"` | GET, UPDATE, DELETE, TRANSITION | Alternate primary key (e.g., `slug`, `email`) |
+  | `ctx.redact_audit_traces(records, scopes)` | `None` (no redaction) | LIST, GET | Confidentiality redaction of audit fields |
+  | `ctx.state_machine_info_for(cr) -> dict \| None` | `None` | CREATE | Initial state assignment metadata |
+  | `ctx.seed_state_columns(record, cr)` | `None` | CREATE | Sets initial state-column values on insert |
+  | `ctx.owner_field_for(cr) -> str \| None` | `None` | CREATE | Field name to populate with the caller's principal id |
+  | `ctx.publish_content_event(cr, event, record)` | `None` | CREATE, UPDATE, DELETE | Per-content lifecycle event publication |
+  | `ctx.route_terminator_validation(...)` | `None` | CREATE, UPDATE, DELETE | Async terminator validation hook |
+  | `ctx.run_event_handlers_for_content(...)` | `None` | CREATE, UPDATE | Fires When-rule event handlers |
+  | `ctx.check_compute_access(...)` | `None` | Compute invoke | Per-compute-call scope gate |
+  | `ctx.channel_dispatcher` | `None` | Channel send/invoke | Channel transport router |
+
+The Protocol shapes for `StorageProvider`, `Terminator`, and `EventBus` are defined in `termin_core.providers.*` and `termin_core.state.*`. The optional callable shapes are documented inline in `termin_core.routing.crud` and the call sites are stable across v0.9.x — adapters can pin to those signatures.
+
+A `RuntimeContext` Protocol formalizing this surface is a v0.10 candidate; until then, the table above is the contract.
+
+### 6.6 Path Conventions and Adapter Aliases
+
+`build_route_specs(ctx)` produces canonical paths for each route kind:
+
+  | Kind | Canonical path |
+  |---|---|
+  | LIST | `GET /api/v1/{content}` |
+  | CREATE | `POST /api/v1/{content}` |
+  | GET_ONE | `GET /api/v1/{content}/{id}` |
+  | UPDATE | `PUT /api/v1/{content}/{id}` |
+  | DELETE | `DELETE /api/v1/{content}/{id}` |
+  | TRANSITION | `POST /api/v1/{content}/_transition/{machine}/{key}/{target}` |
+  | APPEND | `POST /api/v1/{content}/{id}/{field}/append` |
+  | Channel send | `POST /api/v1/_channels/{channel}/send` |
+  | Channel invoke | `POST /api/v1/_channels/{channel}/{action}` |
+  | Channel webhook | `POST /api/v1/_channels/{channel}/webhook` |
+
+The path-parameter placeholder is `{name}` syntax. Frameworks that use a different placeholder syntax (`:name`, `<name>`, etc.) must translate at bind time.
+
+**Backwards-compat aliases.** If an alternate runtime needs to support legacy URL conventions (paths from earlier IR versions, paths inherited from a non-Termin predecessor system), the adapter is responsible for adding alias routes that delegate to the canonical handler. The pattern is:
+
+```python
+specs = build_route_specs(ctx)
+for spec in specs:
+    adapter.add_route(spec.method, spec.path, _wrap(spec, ctx))
+    # Adapter-local alias routes:
+    if spec.tags and spec.tags[0] == "transition":
+        legacy_path = spec.path.replace(
+            "/api/v1/{content}/_transition/", "/_transition/{content}/",
+        )
+        adapter.add_route(spec.method, legacy_path, _wrap(spec, ctx))
+```
+
+The canonical paths in `build_route_specs` do not change to accommodate adapter-local conventions — alias routes belong in the adapter, not in core.
 
 ---
 

@@ -4,6 +4,38 @@
 
 ### Added
 
+- **Implementer's Guide §3.5 — Two-Layer Security Model.** New
+  section documenting the per-route scope gate (Layer 1) and the
+  per-content boundary identity gate (Layer 2) as independent,
+  complementary access checks. Includes the wrapper pattern for
+  adapters that iterate `build_route_specs(ctx)` directly and
+  must enforce `required_scope` themselves. Covers the
+  ordering precedence (404 > 405 > 403 > handler > boundary
+  > AccessGrant verb). Closes (2) of `termin-core` issue #6.
+
+- **Implementer's Guide §6.4 — Dispatcher Contract.** Documents
+  the two binding models (single-entry catch-all vs per-route
+  binding), the dispatcher's response-code precedence, automatic
+  Layer 1 enforcement, and the `_route_specs_cache` invalidation
+  contract for hot-reload.
+
+- **Implementer's Guide §6.5 — ctx Wiring Requirements.** Tabular
+  documentation of every `ctx` attribute the routing handlers
+  reach into. Distinguishes required attributes (handlers crash
+  without them) from optional attributes (getattr-defaulted to
+  sensible no-op behavior). Documents `_check_boundary_identity`
+  as optional-but-MUST-wire for multi-tenant runtimes. Notes a
+  `RuntimeContext` Protocol formalizing this surface as a v0.10
+  candidate. Closes (3) of `termin-core` issue #6.
+
+- **Implementer's Guide §6.6 — Path Conventions and Adapter
+  Aliases.** Canonical paths per route kind in a single table.
+  Establishes the policy that backwards-compat aliases for
+  legacy URL conventions belong in the adapter, not in core.
+  Closes (4) of `termin-core` issue #6 at the documentation
+  level — concrete route-matching specifics from adopters
+  still pending.
+
 - **3 new tests in
   ``tests/test_alt_runtime_imports.py`` (Section 10) pinning the
   storage-Protocol shape contract for ``append_to_field``
