@@ -177,6 +177,17 @@ def hrportal():
         app_info.cleanup()
 
 @pytest.fixture(scope="session")
+def owner_keyed_update():
+    """v0.9.4 cross-content slice: rounds → profiles owner-keyed
+    projection fixture. Tests the new `When <singular> <field>
+    enters <state>:` trigger + `Update the user's <singular>:
+    <field> = `<cel>`` action against any conforming runtime."""
+    app_info, session = _get_app_session("owner_keyed_update")
+    yield session
+    if app_info.cleanup:
+        app_info.cleanup()
+
+@pytest.fixture(scope="session")
 def agent_simple():
     app_info, session = _get_app_session("agent_simple")
     yield session
