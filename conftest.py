@@ -177,6 +177,20 @@ def hrportal():
         app_info.cleanup()
 
 @pytest.fixture(scope="session")
+def detail_page():
+    """v0.9.4 Phase 2 detail-page primitive fixture: one content
+    type (notes) with an `is owned by` declaration; a list page and
+    a detail page that names the same plural. Tests the new
+    `Show a detail page for <plural> called "<name>"` grammar form
+    against any conforming runtime — including 404 surfaces for
+    missing ids and other-principal records."""
+    app_info, session = _get_app_session("detail_page")
+    yield session
+    if app_info.cleanup:
+        app_info.cleanup()
+
+
+@pytest.fixture(scope="session")
 def owner_keyed_update():
     """v0.9.4 cross-content slice: rounds → profiles owner-keyed
     projection fixture. Tests the new `When <singular> <field>
