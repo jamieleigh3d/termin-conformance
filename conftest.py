@@ -177,6 +177,20 @@ def hrportal():
         app_info.cleanup()
 
 @pytest.fixture(scope="session")
+def transition_action():
+    """v0.9.4 Phase 3 C1 fixture: two state machines on rounds
+    (status + archive_status). A state-entered When-rule on
+    status.done.entered fires a Transition action on
+    archive_status. Validates that any conforming runtime
+    dispatches the Transition action verb through its
+    state-machine path and cascades cleanly across machines."""
+    app_info, session = _get_app_session("transition_action")
+    yield session
+    if app_info.cleanup:
+        app_info.cleanup()
+
+
+@pytest.fixture(scope="session")
 def detail_page():
     """v0.9.4 Phase 2 detail-page primitive fixture: one content
     type (notes) with an `is owned by` declaration; a list page and
