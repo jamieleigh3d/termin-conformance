@@ -191,6 +191,21 @@ def transition_action():
 
 
 @pytest.fixture(scope="session")
+def compute_invoked_trigger():
+    """v0.9.4 Phase 3 C3 fixture: rounds + a Transform-shape compute
+    (`test_tool`) + two When-rules, one unfiltered and one filtered
+    on `args.marker == "filter_me"`. Validates that any conforming
+    runtime emits a synthetic `<compute>.invoked` event after the
+    compute body returns, dispatches matching When-rules with the
+    event context (`args`, `result`, source singular), and respects
+    the optional CEL filter."""
+    app_info, session = _get_app_session("compute_invoked_trigger")
+    yield session
+    if app_info.cleanup:
+        app_info.cleanup()
+
+
+@pytest.fixture(scope="session")
 def detail_page():
     """v0.9.4 Phase 2 detail-page primitive fixture: one content
     type (notes) with an `is owned by` declaration; a list page and
